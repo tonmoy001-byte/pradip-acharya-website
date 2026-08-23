@@ -75,10 +75,8 @@ export const BASE_BOOKS: Book[] = [
     pages: 320,
     language: "বাংলা",
     images: {
-      primary:
-        "https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=900&q=80",
-      hover:
-        "https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=900&q=80",
+      primary: "/images/books/chhera-pushpo-1.png",
+      hover: "/images/books/chhera-pushpo-2.png",
     },
     featured: true,
     isNew: true,
