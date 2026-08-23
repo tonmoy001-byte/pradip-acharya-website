@@ -14,6 +14,18 @@ export default async function HomePage() {
 
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "প্রদীপ কুমার আচার্য্য",
+            description: "বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস।",
+            url: "/",
+          }),
+        }}
+      />
       <Hero />
 
       {/* Author Intro */}

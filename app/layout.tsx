@@ -40,6 +40,13 @@ export const metadata: Metadata = {
   title: "প্রদীপ কুমার আচার্য্য - ছেঁড়া পুষ্প | বাংলা সাহিত্য",
   description:
     "প্রদীপ কুমার আচার্য্যের ছেঁড়া পুষ্প — বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস।",
+  openGraph: {
+    title: "প্রদীপ কুমার আচার্য্য - ছেঁড়া পুষ্প",
+    description: "বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস।",
+    siteName: "প্রদীপ কুমার আচার্য্য",
+    locale: "bn_BD",
+    type: "website",
+  },
 }
 
 export default function RootLayout({
