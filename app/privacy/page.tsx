@@ -1,0 +1,37 @@
+import type { Metadata } from "next"
+
+export const metadata: Metadata = {
+  title: "গোপনীয়তা নীতি | প্রদীপ কুমার আচার্য্য",
+  description: "আমাদের গোপনীয়তা নীতি।",
+}
+
+export default function PrivacyPage() {
+  return (
+    <div className="container section-padding" style={{ maxWidth: 700, marginInline: "auto" }}>
+      <div className="page-header">
+        <h1>গোপনীয়তা নীতি</h1>
+      </div>
+
+      <div style={{ lineHeight: 1.8, color: "var(--ink-muted)" }}>
+        <p style={{ marginBottom: "var(--sp-4)" }}>
+          আমরা আপনার গোপনীয়তাকে সম্মান করি। এই নীতিতে বর্ণনা করা হয়েছে আমরা
+          কীভাবে আপনার তথ্য সংগ্রহ ও ব্যবহার করি।
+        </p>
+
+        <h3 style={{ marginBottom: "var(--sp-3)" }}>তথ্য সংগ্রহ</h3>
+        <p style={{ marginBottom: "var(--sp-4)" }}>
+          আমরা শুধুমাত্র অর্ডার প্রক্রিয়াকরণের জন্য প্রয়োজনীয় তথ্য সংগ্রহ করি।
+        </p>
+
+        <h3 style={{ marginBottom: "var(--sp-3)" }}>তথ্য ব্যবহার</h3>
+        <p style={{ marginBottom: "var(--sp-4)" }}>
+          আপনার তথ্য শুধুমাত্র অর্ডার প্রক্রিয়াকরণে ব্যবহৃত হয়।
+        </p>
+
+        <p style={{ fontSize: "0.875rem", color: "var(--stone)" }}>
+          [সম্পূর্ণ গোপনীয়তা নীতি এখানে যোগ করুন]
+        </p>
+      </div>
+    </div>
+  )
+}
