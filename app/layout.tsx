@@ -7,6 +7,7 @@ import {
 } from "next/font/google"
 import "./globals.css"
 import { CartProvider } from "@/lib/store"
+import { ToastProvider } from "@/components/Toast"
 import Navbar from "@/components/Navbar"
 import Footer from "@/components/Footer"
 import AnnouncementBar from "@/components/AnnouncementBar"
@@ -56,11 +57,13 @@ export default function RootLayout({
           মূল বিষয়বস্তুতে যান
         </a>
         <AnnouncementBar />
-        <CartProvider>
-          <Navbar />
-          <main id="main-content">{children}</main>
-          <Footer />
-        </CartProvider>
+        <ToastProvider>
+          <CartProvider>
+            <Navbar />
+            <main id="main-content">{children}</main>
+            <Footer />
+          </CartProvider>
+        </ToastProvider>
       </body>
     </html>
   )
