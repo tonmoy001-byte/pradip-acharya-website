@@ -75,7 +75,9 @@ export default async function HomePage() {
                 <img
                   src="https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=900&q=80"
                   alt="ছেঁড়া পুষ্প"
-                  style={{ width: "100%", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)" }}
+                  width={900}
+                  height={600}
+                  style={{ width: "100%", height: "auto", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)" }}
                 />
               </div>
             </div>

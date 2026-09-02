@@ -68,6 +68,8 @@ export default function BookCard({ book }: BookCardProps) {
             src={book.images.primary}
             alt={book.title}
             className="book-card-image primary"
+            width={300}
+            height={400}
           />
           {book.images.hover && (
             <img
@@ -75,6 +77,8 @@ export default function BookCard({ book }: BookCardProps) {
               alt=""
               className="book-card-image hover"
               aria-hidden="true"
+              width={300}
+              height={400}
             />
           )}
           {book.isDemo && (
