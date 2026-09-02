@@ -2,6 +2,8 @@ import { getBooks } from "@/lib/api"
 import BookGrid from "@/components/BookGrid"
 import FilterBar from "../books/FilterBar"
 
+export const dynamic = "force-dynamic"
+
 export const metadata = {
   title: "উপন্যাস | প্রদীপ কুমার আচার্য্য",
   description: "প্রদীপ কুমার আচার্য্যের উপন্যাস সংকলন।",

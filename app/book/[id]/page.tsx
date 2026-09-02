@@ -4,6 +4,8 @@ import { money } from "@/lib/format"
 import BookDetailClient from "./BookDetailClient"
 import BookGrid from "@/components/BookGrid"
 
+export const dynamic = "force-dynamic"
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const book = await getBookById(id)

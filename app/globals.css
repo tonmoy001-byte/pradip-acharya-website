@@ -1154,10 +1154,33 @@ p {
 
 .book-card-actions {
   padding: 0 var(--sp-4) var(--sp-4);
+  display: flex;
+  gap: var(--sp-2);
+}
+
+.wishlist-btn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--white);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  font-size: 1.125rem;
+  color: var(--stone);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.wishlist-btn:hover {
+  color: #e74c3c;
+  border-color: #e74c3c;
 }
 
 .quick-add-btn {
-  width: 100%;
+  flex: 1;
   padding: var(--sp-2) var(--sp-4);
   background: var(--white);
   border: 1px solid var(--border-strong);
@@ -1441,5 +1464,91 @@ p {
   }
   50% {
     transform: translateX(-50%) translateY(8px);
+  }
+}
+
+/* ==========================================================
+   Account Layout
+   ========================================================== */
+.account-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: var(--sp-8);
+  min-height: 60vh;
+}
+
+.account-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.account-sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-md);
+  color: var(--ink-muted);
+  text-decoration: none;
+  font-size: 0.9375rem;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.account-sidebar-link:hover {
+  background: var(--bg-alt);
+  color: var(--ink);
+}
+
+.account-sidebar-link.active {
+  background: var(--terracotta);
+  color: var(--white);
+}
+
+.account-sidebar-badge {
+  margin-left: auto;
+  background: var(--terracotta);
+  color: var(--white);
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.account-sidebar-link.active .account-sidebar-badge {
+  background: var(--white);
+  color: var(--terracotta);
+}
+
+.account-content {
+  min-width: 0;
+}
+
+.account-sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: var(--sp-4) 0;
+}
+
+@media (max-width: 768px) {
+  .account-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .account-sidebar {
+    display: flex;
+    overflow-x: auto;
+    gap: var(--sp-2);
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .account-sidebar-link {
+    white-space: nowrap;
+    font-size: 0.8125rem;
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  .account-sidebar-divider {
+    display: none;
   }
 }

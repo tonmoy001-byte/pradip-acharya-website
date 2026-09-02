@@ -1,0 +1,327 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import Link from "next/link"
+import { useAuth } from "@/lib/auth"
+import { money } from "@/lib/format"
+
+interface OrderItem {
+  id: string
+  title_snapshot: string
+  author_snapshot: string
+  format_snapshot: string
+  cover_image_snapshot: string | null
+  quantity: number
+  unit_price_snapshot: number
+  line_total: number
+}
+
+interface Order {
+  id: string
+  payment_status: string
+  fulfillment_status: string
+  subtotal: number
+  delivery_charge: number
+  total: number
+  currency: string
+  created_at: string
+  paid_at: string | null
+  items: OrderItem[]
+}
+
+function paymentBadgeClass(status: string) {
+  if (status === "paid") return "badge-green"
+  if (status === "pending_payment") return ""
+  return ""
+}
+
+function paymentBadgeBg(status: string) {
+  if (status === "paid") return undefined
+  if (status === "pending_payment") return "rgba(202, 138, 4, 0.1)"
+  return "rgba(107, 114, 128, 0.08)"
+}
+
+function paymentBadgeColor(status: string) {
+  if (status === "paid") return undefined
+  if (status === "pending_payment") return "#92400e"
+  return "#374151"
+}
+
+function paymentLabel(s: string) {
+  const map: Record<string, string> = {
+    pending_payment: "অপেক্ষমান",
+    payment_review: "পর্যালোচনাধীন",
+    paid: "পরিশোধিত",
+    refunded: "ফেরত দেওয়া হয়েছে",
+  }
+  return map[s] || s
+}
+
+function fulfillmentLabel(s: string) {
+  const map: Record<string, string> = {
+    not_applicable: "প্রযোজ্য নয়",
+    pending: "অপেক্ষমান",
+    processing: "প্রক্রিয়াকরণ",
+    shipped: "পাঠানো হয়েছে",
+    delivered: "ডেলিভারি সম্পন্ন",
+    returned: "ফেরত",
+  }
+  return map[s] || s
+}
+
+function fulfillmentBadgeStyle(status: string): React.CSSProperties {
+  if (status === "delivered") return { background: "rgba(74, 103, 65, 0.1)", color: "var(--green)" }
+  if (status === "shipped") return { background: "rgba(59, 130, 246, 0.1)", color: "#1d4ed8" }
+  return { background: "rgba(107, 114, 128, 0.08)", color: "#374151" }
+}
+
+export default function AccountOrdersPage() {
+  const { user, loading: authLoading } = useAuth()
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (authLoading || !user) return
+
+    async function fetchOrders() {
+      try {
+        const res = await fetch("/api/my-orders", { credentials: "include" })
+        const data = await res.json()
+
+        if (!res.ok) {
+          setError(data.error || "অর্ডার লোড করা যায়নি")
+          return
+        }
+
+        setOrders(data.data || [])
+      } catch {
+        setError("অর্ডার লোড করা যায়নি")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchOrders()
+  }, [user, authLoading])
+
+  if (authLoading || loading) {
+    return (
+      <div>
+        <div className="page-header">
+          <h1>আমার অর্ডার</h1>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="skeleton" style={{ height: 160, borderRadius: "var(--radius-lg)" }} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div>
+        <div className="page-header">
+          <h1>আমার অর্ডার</h1>
+        </div>
+        <div
+          role="alert"
+          style={{
+            padding: "var(--sp-3) var(--sp-4)",
+            background: "rgba(192, 57, 43, 0.06)",
+            border: "1px solid rgba(192, 57, 43, 0.25)",
+            borderRadius: "var(--radius-md)",
+            color: "#991b1b",
+            fontSize: "0.875rem",
+          }}
+        >
+          {error}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div className="page-header" style={{ paddingBottom: "var(--sp-4)" }}>
+        <h1>আমার অর্ডার</h1>
+        <p style={{ color: "var(--ink-muted)", marginTop: "var(--sp-2)" }}>
+          আপনার সকল অর্ডারের তালিকা
+        </p>
+      </div>
+
+      {orders.length === 0 ? (
+        <div className="cart-empty">
+          <svg
+            width="48"
+            height="48"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--stone)"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ marginBottom: "var(--sp-4)", opacity: 0.5 }}
+          >
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>
+          <p style={{ color: "var(--ink-muted)", marginBottom: "var(--sp-4)", fontSize: "1rem" }}>
+            আপনার কোনো অর্ডার নেই
+          </p>
+          <Link href="/books" className="btn btn-primary">
+            সকল বই দেখুন
+          </Link>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
+          {orders.map((order) => (
+            <div
+              key={order.id}
+              className="card"
+              style={{ padding: "var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}
+            >
+              {/* Order Header */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "flex-start",
+                  flexWrap: "wrap",
+                  gap: "var(--sp-3)",
+                }}
+              >
+                <div>
+                  <p style={{ fontWeight: 600, fontSize: "0.9375rem", fontFamily: "var(--font-body)" }}>
+                    অর্ডার #{order.id.slice(0, 8)}
+                  </p>
+                  <p style={{ fontSize: "0.8125rem", color: "var(--stone)", marginTop: "var(--sp-1)" }}>
+                    {new Date(order.created_at).toLocaleDateString("bn-BD", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: "var(--sp-2)", flexWrap: "wrap" }}>
+                  <span
+                    className={`badge ${paymentBadgeClass(order.payment_status)}`}
+                    style={{
+                      background: paymentBadgeBg(order.payment_status),
+                      color: paymentBadgeColor(order.payment_status),
+                    }}
+                  >
+                    {paymentLabel(order.payment_status)}
+                  </span>
+                  <span className="badge" style={fulfillmentBadgeStyle(order.fulfillment_status)}>
+                    {fulfillmentLabel(order.fulfillment_status)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Items */}
+              <div style={{ borderTop: "1px solid var(--border)", paddingTop: "var(--sp-3)" }}>
+                {order.items && order.items.length > 0 ? (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+                    {order.items.slice(0, 3).map((item) => (
+                      <div
+                        key={item.id}
+                        style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}
+                      >
+                        {item.cover_image_snapshot ? (
+                          <img
+                            src={item.cover_image_snapshot}
+                            alt={item.title_snapshot}
+                            style={{
+                              width: 40,
+                              height: 56,
+                              objectFit: "cover",
+                              borderRadius: "var(--radius-sm)",
+                              flexShrink: 0,
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: 40,
+                              height: 56,
+                              borderRadius: "var(--radius-sm)",
+                              background: "var(--stone)",
+                              opacity: 0.15,
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p
+                            style={{
+                              fontSize: "0.875rem",
+                              fontWeight: 500,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {item.title_snapshot}
+                          </p>
+                          <p style={{ fontSize: "0.75rem", color: "var(--stone)" }}>
+                            {item.format_snapshot} × {item.quantity}
+                          </p>
+                        </div>
+                        <p style={{ fontSize: "0.875rem", fontWeight: 600, whiteSpace: "nowrap" }}>
+                          {money(item.line_total)}
+                        </p>
+                      </div>
+                    ))}
+                    {order.items.length > 3 && (
+                      <p style={{ fontSize: "0.75rem", color: "var(--stone)" }}>
+                        এবং আরো {order.items.length - 3}টি আইটেম...
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>
+                    আইটেম তথ্য পাওয়া যায়নি
+                  </p>
+                )}
+              </div>
+
+              {/* Footer: Total + Link */}
+              <div
+                style={{
+                  borderTop: "1px solid var(--border)",
+                  paddingTop: "var(--sp-3)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "var(--sp-2)",
+                }}
+              >
+                <p style={{ fontSize: "0.9375rem", fontWeight: 600 }}>
+                  মোট: {money(order.total)}
+                </p>
+                <Link
+                  href={`/account/orders/${order.id}`}
+                  style={{
+                    fontSize: "0.875rem",
+                    color: "var(--terracotta)",
+                    fontWeight: 500,
+                    textDecoration: "none",
+                  }}
+                >
+                  বিস্তারিত দেখুন →
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

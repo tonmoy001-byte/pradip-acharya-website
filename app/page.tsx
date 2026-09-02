@@ -5,6 +5,8 @@ import Hero from "@/components/Hero"
 import BookGrid from "@/components/BookGrid"
 import ScrollReveal from "@/components/ScrollReveal"
 
+export const dynamic = "force-dynamic"
+
 export default async function HomePage() {
   const [featured, newReleases, trending] = await Promise.all([
     getFeatured(),

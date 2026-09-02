@@ -1,9 +1,11 @@
 "use client"
 
+import { useState, useCallback } from "react"
 import Link from "next/link"
 import type { Book } from "@/lib/data"
 import { money } from "@/lib/format"
 import { useCart } from "@/lib/store"
+import { useAuth } from "@/lib/auth"
 import { useToast } from "./Toast"
 
 interface BookCardProps {
@@ -13,6 +15,9 @@ interface BookCardProps {
 export default function BookCard({ book }: BookCardProps) {
   const { addToCart } = useCart()
   const { showToast } = useToast()
+  const { user } = useAuth()
+  const [wishlisted, setWishlisted] = useState(false)
+  const [toggling, setToggling] = useState(false)
 
   const lowestPrice = Math.min(...book.formats.map((f) => f.price))
   const hasMultipleFormats = book.formats.length > 1
@@ -29,6 +34,31 @@ export default function BookCard({ book }: BookCardProps) {
     })
     showToast(`${book.title} কার্টে যোগ হয়েছে`)
   }
+
+  const handleWishlistToggle = useCallback(async (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!user) {
+      showToast("উইশলিস্টে যোগ করতে লগ ইন করুন")
+      return
+    }
+    if (toggling) return
+    setToggling(true)
+    try {
+      const res = await fetch("/api/wishlist", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ book_id: book.id }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setWishlisted(data.action === "added")
+        showToast(data.action === "added" ? "উইশলিস্টে যোগ হয়েছে" : "উইশলিস্ট থেকে সরানো হয়েছে")
+      }
+    } catch {}
+    finally { setToggling(false) }
+  }, [user, book.id, toggling, showToast])
 
   return (
     <div className="book-card">
@@ -62,6 +92,14 @@ export default function BookCard({ book }: BookCardProps) {
         </div>
       </Link>
       <div className="book-card-actions">
+        <button
+          className="wishlist-btn"
+          onClick={handleWishlistToggle}
+          aria-label={wishlisted ? "উইশলিস্ট থেকে সরান" : "উইশলিস্টে যোগ করুন"}
+          disabled={toggling}
+        >
+          {wishlisted ? "♥" : "♡"}
+        </button>
         <button
           className="quick-add-btn"
           onClick={handleQuickAdd}

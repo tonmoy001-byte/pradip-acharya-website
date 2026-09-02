@@ -8,6 +8,7 @@ import {
 import "./globals.css"
 import { CartProvider } from "@/lib/store"
 import { ToastProvider } from "@/components/Toast"
+import { AuthProvider } from "@/lib/auth"
 import Navbar from "@/components/Navbar"
 import Footer from "@/components/Footer"
 import AnnouncementBar from "@/components/AnnouncementBar"
@@ -65,11 +66,13 @@ export default function RootLayout({
         </a>
         <AnnouncementBar />
         <ToastProvider>
-          <CartProvider>
-            <Navbar />
-            <main id="main-content">{children}</main>
-            <Footer />
-          </CartProvider>
+          <AuthProvider>
+            <CartProvider>
+              <Navbar />
+              <main id="main-content">{children}</main>
+              <Footer />
+            </CartProvider>
+          </AuthProvider>
         </ToastProvider>
       </body>
     </html>

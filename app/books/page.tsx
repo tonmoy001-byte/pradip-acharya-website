@@ -3,6 +3,8 @@ import { CATEGORIES } from "@/lib/data"
 import BookGrid from "@/components/BookGrid"
 import FilterBar from "./FilterBar"
 
+export const dynamic = "force-dynamic"
+
 export const metadata = {
   title: "সকল বই | প্রদীপ কুমার আচার্য্য",
   description: "প্রদীপ কুমার আচার্য্যের সকল বই এখানে পাওয়া যাচ্ছে।",

@@ -3,10 +3,12 @@
 import Link from "next/link"
 import { useState, useEffect, useRef } from "react"
 import { useCart } from "@/lib/store"
+import { useAuth } from "@/lib/auth"
 
 export default function Navbar() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const { itemCount } = useCart()
+  const { user, signOut } = useAuth()
   const drawerRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
 
@@ -56,6 +58,37 @@ export default function Navbar() {
             {itemCount > 0 && <span className="navbar-badge">{itemCount}</span>}
           </Link>
 
+          {user ? (
+            <div className="navbar-user-menu" style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
+              <Link href="/account" className="navbar-icon-btn" aria-label="আমার অ্যাকাউন্ট" title="আমার অ্যাকাউন্ট">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+              </Link>
+              <button
+                onClick={() => signOut()}
+                className="navbar-icon-btn"
+                aria-label="লগ আউট"
+                title="লগ আউট"
+                style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", padding: "var(--sp-2)" }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <Link href="/login" className="navbar-icon-btn" aria-label="লগ ইন">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            </Link>
+          )}
+
           <button
             className="navbar-hamburger show-mobile-only"
             onClick={() => setDrawerOpen(true)}
@@ -88,6 +121,20 @@ export default function Navbar() {
             <Link href="/novels" className="navbar-drawer-link" onClick={() => setDrawerOpen(false)}>উপন্যাস</Link>
             <Link href="/about" className="navbar-drawer-link" onClick={() => setDrawerOpen(false)}>লেখক পরিচিতি</Link>
             <Link href="/search" className="navbar-drawer-link" onClick={() => setDrawerOpen(false)}>অনুসন্ধান</Link>
+            {user ? (
+              <>
+                <Link href="/account" className="navbar-drawer-link" onClick={() => setDrawerOpen(false)}>আমার অ্যাকাউন্ট</Link>
+                <button
+                  onClick={() => { signOut(); setDrawerOpen(false) }}
+                  className="navbar-drawer-link"
+                  style={{ background: "none", border: "none", cursor: "pointer", textAlign: "start", width: "100%", color: "inherit", font: "inherit" }}
+                >
+                  লগ আউট
+                </button>
+              </>
+            ) : (
+              <Link href="/login" className="navbar-drawer-link" onClick={() => setDrawerOpen(false)}>লগ ইন</Link>
+            )}
           </div>
         </div>
       )}

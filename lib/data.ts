@@ -3,7 +3,7 @@
 // This is the single source of truth for the demo catalogue.
 
 export type BookCategory = "novels" | "books"
-export type BookFormatName = "Paperback" | "Hardcover" | "eBook"
+export type BookFormatName = "Paperback" | "eBook"
 
 export interface BookFormat {
   name: BookFormatName
@@ -67,7 +67,6 @@ export const BASE_BOOKS: Book[] = [
       "ছেঁড়া পুষ্প প্রদীপ কুমার আচার্য্যের একটি উল্লেখযোগ্য উপন্যাস। এই গল্পে আমরা দেখতে পাই...",
     formats: [
       { name: "Paperback", price: 450, compareAtPrice: 550, available: true },
-      { name: "Hardcover", price: 750, available: true },
       { name: "eBook", price: 199, available: true },
     ],
     publicationDate: "2026-01-01",
