@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { cartItems, contact, shippingAddress } = body
+    const { cartItems, contact, shippingAddress, paymentMethod, bkashTrxId } = body
 
     if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
       return NextResponse.json({ error: "Cart is empty" }, { status: 400 })
@@ -65,6 +65,22 @@ export async function POST(req: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message || "Order creation failed" }, { status: 500 })
+    }
+
+    // Update order with payment method and bKash TrxID if provided
+    const orderId = data?.order_id || data?.id
+    if (orderId && paymentMethod) {
+      const updateData: Record<string, any> = {
+        payment_method: paymentMethod,
+      }
+      if (paymentMethod === "bkash" && bkashTrxId) {
+        updateData.bkash_trx_id = bkashTrxId
+        updateData.payment_status = "pending_verification"
+      }
+      await client.database
+        .from("orders")
+        .update(updateData)
+        .eq("id", orderId)
     }
 
     return NextResponse.json({ data })

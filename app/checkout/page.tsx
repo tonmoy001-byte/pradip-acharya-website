@@ -1,35 +1,11 @@
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCart } from "@/lib/store"
 import { useAuth } from "@/lib/auth"
 import { money, deliveryCharge } from "@/lib/format"
-
-// bKash SDK global type
-declare global {
-  interface Window {
-    bKash?: {
-      config: (options: BkashConfig) => void
-      create: () => { onSuccess: (data: any) => void; onError: () => void }
-      execute: () => { onSuccess: (data: any) => void; onError: () => void }
-    }
-  }
-}
-
-interface BkashConfig {
-  paymentMode: string
-  paymentRequest: {
-    amount: string
-    intent: string
-    currency?: string
-    merchantInvoiceNumber?: string
-  }
-  createRequest: (request: any) => void
-  executeRequestOnAuthorization: () => void
-  onClose: () => void
-}
 
 interface SavedAddress {
   id: string
@@ -44,6 +20,10 @@ interface SavedAddress {
 }
 
 type PaymentMethod = "bkash" | "cod"
+
+// bKash personal number (the number customers send money to)
+const BKASH_NUMBER = "01XXXXXXXXX" // <-- UPDATE THIS with your actual bKash number
+const BKASH_NAME = "প্রদীপ কুমার আচার্য্য"
 
 export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCart()
@@ -67,9 +47,8 @@ export default function CheckoutPage() {
 
   // Payment state
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("bkash")
-  const [bkashReady, setBkashReady] = useState(false)
-  const [bkashProcessing, setBkashProcessing] = useState(false)
-  const bkashInitialized = useRef(false)
+  const [bkashTrxId, setBkashTrxId] = useState("")
+  const [bkashStep, setBkashStep] = useState<"form" | "confirming">("form")
 
   // Fetch saved addresses when logged in
   useEffect(() => {
@@ -97,36 +76,6 @@ export default function CheckoutPage() {
       .catch(() => {})
       .finally(() => setLoadingAddresses(false))
   }, [user])
-
-  // Load bKash SDK script and init
-  useEffect(() => {
-    if (bkashInitialized.current) return
-
-    async function initBkash() {
-      try {
-        const res = await fetch("/api/bkash/config")
-        const config = await res.json()
-        if (!config.appKey) return
-
-        // Load the bKash SDK script
-        const script = document.createElement("script")
-        script.src = config.scriptUrl
-        script.async = true
-        script.onload = () => {
-          bkashInitialized.current = true
-          setBkashReady(true)
-        }
-        script.onerror = () => {
-          console.warn("bKash SDK script failed to load")
-        }
-        document.head.appendChild(script)
-      } catch {
-        console.warn("Failed to load bKash config")
-      }
-    }
-
-    initBkash()
-  }, [])
 
   function selectAddress(addr: SavedAddress | null) {
     if (!addr) {
@@ -164,170 +113,56 @@ export default function CheckoutPage() {
       if (!form.zip.trim()) e.zip = "পোস্ট কোড আবশ্যক"
     }
 
+    if (paymentMethod === "bkash" && !bkashTrxId.trim()) {
+      e.bkashTrxId = "bKash ট্রানজেকশন আইডি আবশ্যক"
+    }
+
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
-  // Create order (returns order data)
-  async function createOrder(): Promise<any> {
-    const hasPhysical = items.some((i) => i.format === "Paperback")
-    const res = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({
-        cartItems: items.map((i) => ({
-          book_id: i.bookId,
-          format_name: i.format,
-          quantity: i.quantity,
-        })),
-        contact: { name: form.name, email: form.email, phone: form.phone },
-        shippingAddress: hasPhysical ? {
-          address: form.address,
-          city: form.city,
-          postal_code: form.zip,
-        } : null,
-      }),
-    })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || "অর্ডার তৈরি ব্যর্থ হয়েছে")
-    return data.data
-  }
-
-  // Execute bKash payment after PIN verification
-  const executeBkashPayment = useCallback(async (paymentID: string, orderId: string) => {
-    try {
-      const res = await fetch("/api/bkash/execute-payment", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ paymentID, orderId }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      return data
-    } catch (err: any) {
-      console.error("bKash execute error:", err)
-      throw err
-    }
-  }, [])
-
-  // bKash payment flow
-  async function handleBkashPayment(orderData: any) {
-    if (!window.bKash) {
-      setServerError("bKash পেমেন্ট সিস্টেম লোড হয়নি। আবার চেষ্টা করুন।")
-      setBkashProcessing(false)
-      return
-    }
-
-    const orderId = orderData.order_id
-    let currentPaymentID = ""
-
-    try {
-      // Configure bKash SDK
-      window.bKash.config({
-        paymentMode: "checkout",
-        paymentRequest: {
-          amount: String(total),
-          intent: "sale",
-          currency: "BDT",
-          merchantInvoiceNumber: orderData.invoice_no || `INV-${orderId}`,
-        },
-        createRequest: async (request: any) => {
-          try {
-            // Create payment on backend
-            const res = await fetch("/api/bkash/create-payment", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({
-                amount: String(total),
-                order_id: orderId,
-              }),
-            })
-            const data = await res.json()
-
-            if (data.paymentID) {
-              currentPaymentID = data.paymentID
-              window.bKash!.create().onSuccess(data)
-            } else {
-              window.bKash!.create().onError()
-              setServerError("bKash পেমেন্ট তৈরি ব্যর্থ: " + (data.error || "অজ্ঞাত ত্রুটি"))
-              setBkashProcessing(false)
-            }
-          } catch (err: any) {
-            window.bKash!.create().onError()
-            setServerError("bKash পেমেন্ট তৈরি ব্যর্থ: " + err.message)
-            setBkashProcessing(false)
-          }
-        },
-        executeRequestOnAuthorization: async () => {
-          try {
-            const result = await executeBkashPayment(currentPaymentID, orderId)
-
-            if (result.status === "Completed") {
-              // Payment successful — clear cart and show success
-              clearCart()
-              setOrderResult({
-                order_id: orderId,
-                total: total,
-                payment_status: "paid",
-                bkash_trx_id: result.trxID,
-              })
-              setBkashProcessing(false)
-            } else {
-              setServerError("bKash পেমেন্ট ব্যর্থ। অবস্থা: " + result.status)
-              setBkashProcessing(false)
-            }
-          } catch (err: any) {
-            window.bKash!.execute().onError()
-            setServerError("bKash পেমেন্ট এক্সিকিউট ব্যর্থ: " + err.message)
-            setBkashProcessing(false)
-          }
-        },
-        onClose: () => {
-          setBkashProcessing(false)
-        },
-      })
-
-      // Trigger the bKash popup
-      window.bKash.create().onSuccess({
-        paymentID: "", // Will be set by createRequest
-      })
-    } catch (err: any) {
-      setServerError("bKash পেমেন্ট ত্রুটি: " + err.message)
-      setBkashProcessing(false)
-    }
-  }
-
-  // Handle form submission
+  // Step 1: Submit form → create order → show bKash confirmation
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!validate() || items.length === 0) return
 
     setSubmitting(true)
     setServerError("")
-    setBkashProcessing(true)
 
     try {
-      // Step 1: Create the order
-      const orderData = await createOrder()
+      const hasPhysical = items.some((i) => i.format === "Paperback")
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          cartItems: items.map((i) => ({
+            book_id: i.bookId,
+            format_name: i.format,
+            quantity: i.quantity,
+          })),
+          contact: { name: form.name, email: form.email, phone: form.phone },
+          shippingAddress: hasPhysical ? {
+            address: form.address,
+            city: form.city,
+            postal_code: form.zip,
+          } : null,
+          paymentMethod: paymentMethod,
+          bkashTrxId: paymentMethod === "bkash" ? bkashTrxId.trim() : null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "অর্ডার তৈরি ব্যর্থ হয়েছে")
 
-      // Step 2: Process payment based on method
-      if (paymentMethod === "bkash") {
-        await handleBkashPayment(orderData)
-      } else {
-        // Cash on Delivery — order is already "pending_payment"
-        clearCart()
-        setOrderResult({
-          ...orderData,
-          payment_status: "pending_payment",
-        })
-        setBkashProcessing(false)
-      }
+      clearCart()
+      setOrderResult({
+        order_id: data.data.order_id || data.data.id,
+        total: total,
+        payment_method: paymentMethod,
+        bkash_trx_id: bkashTrxId.trim() || null,
+      })
     } catch (err: any) {
       setServerError(err.message || "একটি ত্রুটি ঘটেছে। আবার চেষ্টা করুন।")
-      setBkashProcessing(false)
     } finally {
       setSubmitting(false)
     }
@@ -344,18 +179,29 @@ export default function CheckoutPage() {
           <p style={{ color: "var(--stone)", marginBottom: "var(--sp-2)" }}>
             মোট: {money(orderResult.total)}
           </p>
-          {orderResult.payment_status === "paid" && (
-            <p style={{ color: "#16a34a", marginBottom: "var(--sp-2)" }}>
-              পেমেন্ট সম্পন্ন (bKash)
-              {orderResult.bkash_trx_id && <span style={{ display: "block", fontSize: "0.875rem" }}>ট্রানজেকশন আইডি: {orderResult.bkash_trx_id}</span>}
-            </p>
+          {orderResult.payment_method === "bkash" && orderResult.bkash_trx_id && (
+            <div style={{
+              padding: "var(--sp-4)", marginTop: "var(--sp-3)", marginBottom: "var(--sp-3)",
+              background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "var(--radius-md)",
+              textAlign: "center",
+            }}>
+              <p style={{ fontWeight: 600, color: "#166534", marginBottom: "var(--sp-2)" }}>
+                bKash পেমেন্ট কনফার্মেশন
+              </p>
+              <p style={{ fontSize: "0.875rem", color: "#166534" }}>
+                ট্রানজেকশন আইডি: {orderResult.bkash_trx_id}
+              </p>
+              <p style={{ fontSize: "0.8125rem", color: "#16a34a", marginTop: "var(--sp-2)" }}>
+                আমরা আপনার পেমেন্ট যাচাই করে অর্ডার কনফার্ম করব। এতে ১-২ ঘন্টা সময় লাগতে পারে।
+              </p>
+            </div>
           )}
-          {orderResult.payment_status === "pending_payment" && (
+          {orderResult.payment_method === "cod" && (
             <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)" }}>
-              পেমেন্ট স্ট্যাটাস: ক্যাশ অন ডেলিভারি
+              পেমেন্ট: ক্যাশ অন ডেলিভারি
             </p>
           )}
-          <div style={{ display: "flex", gap: "var(--sp-3)", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", gap: "var(--sp-3)", flexWrap: "wrap", marginTop: "var(--sp-4)" }}>
             <Link href="/account/orders" className="btn btn-primary">আমার অর্ডার</Link>
             <Link href="/books" className="btn btn-secondary">আরও বই দেখুন</Link>
           </div>
@@ -378,7 +224,6 @@ export default function CheckoutPage() {
   }
 
   const inputStyle = { width: "100%" }
-  const isProcessing = submitting || bkashProcessing
 
   return (
     <div className="container section-padding">
@@ -525,7 +370,6 @@ export default function CheckoutPage() {
                     borderRadius: "var(--radius-md)", cursor: "pointer",
                     background: paymentMethod === "bkash" ? "#fff7ed" : "var(--white)",
                     borderColor: paymentMethod === "bkash" ? "var(--terracotta)" : "var(--border)",
-                    opacity: bkashReady ? 1 : 0.5,
                   }}
                 >
                   <input
@@ -533,12 +377,11 @@ export default function CheckoutPage() {
                     name="payment-method"
                     checked={paymentMethod === "bkash"}
                     onChange={() => setPaymentMethod("bkash")}
-                    disabled={!bkashReady}
                   />
                   <div>
                     <span style={{ fontWeight: 600 }}>bKash</span>
                     <span style={{ fontSize: "0.75rem", color: "var(--stone)", marginLeft: "var(--sp-2)" }}>
-                      {!bkashReady ? "লোড হচ্ছে..." : "অনলাইন পেমেন্ট"}
+                      মোবাইল ব্যাংকিং
                     </span>
                   </div>
                 </label>
@@ -565,10 +408,57 @@ export default function CheckoutPage() {
                   </div>
                 </label>
               </div>
-              {paymentMethod === "bkash" && !bkashReady && (
-                <p style={{ fontSize: "0.8125rem", color: "var(--stone)", marginTop: "var(--sp-2)" }}>
-                  bKash পেমেন্ট সিস্টেম লোড হচ্ছে...
-                </p>
+
+              {/* bKash payment instructions */}
+              {paymentMethod === "bkash" && (
+                <div style={{
+                  marginTop: "var(--sp-4)", padding: "var(--sp-4)",
+                  background: "#fdf2f8", border: "1px solid #fbcfe8",
+                  borderRadius: "var(--radius-md)",
+                }}>
+                  <h3 style={{ fontSize: "0.9375rem", fontWeight: 600, marginBottom: "var(--sp-3)", color: "#9d174d" }}>
+                    bKash পেমেন্ট নির্দেশনা
+                  </h3>
+                  <ol style={{ fontSize: "0.875rem", color: "#6b7280", paddingLeft: "var(--sp-5)", lineHeight: 1.8 }}>
+                    <li>bKash অ্যাপ খুলুন</li>
+                    <li><strong>সেন্ড মানি</strong> এ যান</li>
+                    <li>নম্বর দিন: <strong style={{ color: "#9d174d", letterSpacing: "0.05em" }}>{BKASH_NUMBER}</strong></li>
+                    <li>পরিমাণ দিন: <strong style={{ color: "#9d174d" }}>{money(total)}</strong></li>
+                    <li>রেফারেন্স: <strong>অর্ডার</strong></li>
+                    <li>পেমেন্ট সম্পন্ন করুন</li>
+                    <li>নিচে ট্রানজেকশন আইডি (TrxID) লিখুন</li>
+                  </ol>
+                  <div style={{
+                    marginTop: "var(--sp-3)", padding: "var(--sp-3)",
+                    background: "white", borderRadius: "var(--radius-sm)",
+                    border: "1px solid #f9a8d4",
+                  }}>
+                    <p style={{ fontSize: "0.8125rem", color: "#9d174d", marginBottom: "var(--sp-2)" }}>
+                      আপনার bKash নম্বর: <strong>{BKASH_NUMBER}</strong> ({BKASH_NAME})
+                    </p>
+                    <p style={{ fontSize: "1.125rem", fontWeight: 700, color: "#9d174d" }}>
+                      পাঠানো টাকা: {money(total)}
+                    </p>
+                  </div>
+                  <div className="form-group" style={{ marginTop: "var(--sp-3)" }}>
+                    <label className="form-label" htmlFor="bkashTrxId">bKash ট্রানজেকশন আইডি (TrxID) *</label>
+                    <input
+                      id="bkashTrxId"
+                      className="form-input"
+                      style={inputStyle}
+                      placeholder="যেমন: 8A2B5C7D9E0F1"
+                      value={bkashTrxId}
+                      onChange={(e) => {
+                        setBkashTrxId(e.target.value)
+                        if (errors.bkashTrxId) setErrors((prev) => ({ ...prev, bkashTrxId: "" }))
+                      }}
+                    />
+                    {errors.bkashTrxId && <span className="form-error">{errors.bkashTrxId}</span>}
+                    <p style={{ fontSize: "0.75rem", color: "var(--stone)", marginTop: "var(--sp-1)" }}>
+                      পেমেন্ট করার পর bKash থেকে প্রাপ্ত TrxID এখানে লিখুন
+                    </p>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -594,18 +484,11 @@ export default function CheckoutPage() {
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={isProcessing}
+                disabled={submitting}
                 style={{ width: "100%", marginTop: "var(--sp-4)" }}
               >
-                {isProcessing
-                  ? (bkashProcessing ? "bKash পেমেন্ট প্রক্রিয়াকরণ..." : "অর্ডার প্রক্রিয়াকরণ...")
-                  : (paymentMethod === "bkash" ? "bKash দিয়ে পেমেন্ট করুন" : "অর্ডার করুন")}
+                {submitting ? "অর্ডার প্রক্রিয়াকরণ..." : "অর্ডার করুন"}
               </button>
-              {paymentMethod === "bkash" && (
-                <p style={{ fontSize: "0.75rem", color: "var(--stone)", textAlign: "center", marginTop: "var(--sp-2)" }}>
-                  bKash পপআপে আপনার PIN দিয়ে পেমেন্ট সম্পন্ন করুন
-                </p>
-              )}
             </div>
           </div>
         </div>

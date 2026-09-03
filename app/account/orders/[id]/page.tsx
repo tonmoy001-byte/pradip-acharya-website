@@ -37,6 +37,7 @@ interface Order {
   }
   payment_method: string | null
   payment_reference: string | null
+  bkash_trx_id: string | null
   items: OrderItem[]
 }
 
@@ -51,6 +52,7 @@ const TIMELINE_STEPS = [
 function paymentLabel(s: string) {
   const map: Record<string, string> = {
     pending_payment: "অপেক্ষমান",
+    pending_verification: "যাচাইকরণ অপেক্ষমান",
     payment_review: "পর্যালোচনাধীন",
     paid: "পরিশোধিত",
     refunded: "ফেরত দেওয়া হয়েছে",
@@ -72,7 +74,7 @@ function fulfillmentLabel(s: string) {
 
 function paymentBadgeStyle(status: string): React.CSSProperties {
   if (status === "paid") return { background: "rgba(74, 103, 65, 0.1)", color: "var(--green)" }
-  if (status === "pending_payment") return { background: "rgba(202, 138, 4, 0.1)", color: "#92400e" }
+  if (status === "pending_payment" || status === "pending_verification") return { background: "rgba(202, 138, 4, 0.1)", color: "#92400e" }
   return { background: "rgba(107, 114, 128, 0.08)", color: "#374151" }
 }
 
@@ -505,6 +507,21 @@ export default function OrderDetailPage() {
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9375rem" }}>
               <span style={{ color: "var(--ink-muted)" }}>ট্রানজেকশন রেফারেন্স</span>
               <span style={{ fontWeight: 500, fontFamily: "var(--font-body)" }}>{order.payment_reference}</span>
+            </div>
+          )}
+          {order.bkash_trx_id && (
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9375rem" }}>
+              <span style={{ color: "var(--ink-muted)" }}>bKash TrxID</span>
+              <span style={{ fontWeight: 500, fontFamily: "var(--font-body)" }}>{order.bkash_trx_id}</span>
+            </div>
+          )}
+          {order.payment_status === "pending_verification" && (
+            <div style={{
+              marginTop: "var(--sp-3)", padding: "var(--sp-3)",
+              background: "#fffbeb", border: "1px solid #fde68a",
+              borderRadius: "var(--radius-md)", fontSize: "0.8125rem", color: "#92400e",
+            }}>
+              আপনার পেমেন্ট যাচাই করা হচ্ছে। এতে ১-২ ঘন্টা সময় লাগতে পারে।
             </div>
           )}
           {order.paid_at && (
