@@ -16,13 +16,9 @@ export async function POST(req: Request, { params }: RouteParams) {
     const body = await req.json()
     const { paymentReference } = body
 
-    if (!paymentReference) {
-      return NextResponse.json({ error: "Payment reference required" }, { status: 400 })
-    }
-
     const { data, error } = await client.database.rpc("approve_order_payment", {
       p_order_id: orderId,
-      p_payment_reference: paymentReference,
+      p_payment_reference: paymentReference || null,
     })
 
     if (error) {
