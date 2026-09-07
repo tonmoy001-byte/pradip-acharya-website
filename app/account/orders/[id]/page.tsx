@@ -37,7 +37,6 @@ interface Order {
   }
   payment_method: string | null
   payment_reference: string | null
-  bkash_trx_id: string | null
   items: OrderItem[]
 }
 
@@ -99,7 +98,6 @@ function getTimelineIndex(status: string): number {
 function paymentMethodLabel(method: string | null) {
   if (!method) return "নির্ধারিত হয়নি"
   const map: Record<string, string> = {
-    bkash: "বিকাশ",
     nagad: "নগদ",
     rocket: "রকেট",
     card: "কার্ড",
@@ -507,12 +505,6 @@ export default function OrderDetailPage() {
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9375rem" }}>
               <span style={{ color: "var(--ink-muted)" }}>ট্রানজেকশন রেফারেন্স</span>
               <span style={{ fontWeight: 500, fontFamily: "var(--font-body)" }}>{order.payment_reference}</span>
-            </div>
-          )}
-          {order.bkash_trx_id && (
-            <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9375rem" }}>
-              <span style={{ color: "var(--ink-muted)" }}>bKash TrxID</span>
-              <span style={{ fontWeight: 500, fontFamily: "var(--font-body)" }}>{order.bkash_trx_id}</span>
             </div>
           )}
           {order.payment_status === "pending_verification" && (

@@ -7,7 +7,6 @@ interface ApproveModalProps {
   orderId: string
   orderTotal: number
   customerName: string
-  bkashTrxId?: string | null
   onConfirm: (paymentReference: string) => Promise<void>
   onCancel: () => void
 }
@@ -16,7 +15,6 @@ export default function ApproveModal({
   orderId,
   orderTotal,
   customerName,
-  bkashTrxId,
   onConfirm,
   onCancel,
 }: ApproveModalProps) {
@@ -50,13 +48,6 @@ export default function ApproveModal({
             <span>মোট</span>
             <span style={{ fontWeight: 600 }}>{money(orderTotal)}</span>
           </div>
-          {bkashTrxId && (
-            <div className="admin-modal-info-row">
-              <span>bKash TrxID</span>
-              <span style={{ fontFamily: "monospace" }}>{bkashTrxId}</span>
-            </div>
-          )}
-
           <label className="admin-modal-label">
             পেমেন্ট রেফারেন্স (ঐচ্ছিক)
           </label>

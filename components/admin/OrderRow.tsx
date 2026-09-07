@@ -14,7 +14,6 @@ export interface AdminOrder {
   contact: { name?: string; email?: string; phone?: string }
   payment_method?: string | null
   payment_reference?: string | null
-  bkash_trx_id?: string | null
   shipping_address?: { city?: string; district?: string } | null
   created_at: string
 }
@@ -134,7 +133,6 @@ export default function OrderRow({ order }: { order: AdminOrder }) {
               orderId={order.id}
               orderTotal={order.total}
               customerName={order.contact?.name || ""}
-              bkashTrxId={order.bkash_trx_id}
               onConfirm={handleApprove}
               onCancel={() => setShowApprove(false)}
             />

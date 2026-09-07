@@ -41,12 +41,11 @@ export async function POST(req: Request) {
     const client = await createServerClient()
 
     const body = await req.json()
-    const { cartItems, contact, shippingAddress, paymentMethod, bkashTrxId } = body as {
+    const { cartItems, contact, shippingAddress, paymentMethod } = body as {
       cartItems: CartItem[]
       contact: OrderContact
       shippingAddress?: { address: string; city: string; postal_code: string }
       paymentMethod?: string
-      bkashTrxId?: string
     }
 
     if (!cartItems || !Array.isArray(cartItems) || cartItems.length === 0) {
@@ -125,8 +124,7 @@ export async function POST(req: Request) {
         shipping_address: shippingAddress || null,
         currency: "BDT",
         payment_method: paymentMethod || "cod",
-        bkash_trx_id: paymentMethod === "bkash" ? bkashTrxId : null,
-        payment_status: paymentMethod === "bkash" ? "pending_verification" : "pending_payment",
+        payment_status: "pending_payment",
         subtotal,
         delivery_charge: deliveryCharge,
         total,
