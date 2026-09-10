@@ -1,14 +1,26 @@
 // app/admin/layout.tsx
 // Admin panel layout — dark sidebar with full navigation.
 
+import { redirect } from "next/navigation"
 import Link from "next/link"
+import { requireAdmin, type AuthUser } from "@/lib/auth-helpers"
 import AdminGuard from "@/components/admin/AdminGuard"
 
 export const metadata = {
   title: "অ্যাডমিন — প্রদীপ কুমার আচার্য্য",
 }
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export const dynamic = "force-dynamic"
+
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  let user: AuthUser | null = null
+  try {
+    user = await requireAdmin()
+  } catch {
+    redirect("/login")
+  }
+  if (!user) redirect("/login")
+
   return (
     <div className="admin-layout">
       <aside className="admin-sidebar">
