@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import BookForm from "@/components/admin/BookForm"
 
@@ -86,8 +87,17 @@ export default function AdminBookEditPage() {
   return (
     <div className="admin-page">
       <div className="admin-page-header">
-        <h1 className="admin-page-title">বই এডিট করুন</h1>
-        <p className="admin-page-subtitle">{book.title}</p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h1 className="admin-page-title">বই এডিট করুন</h1>
+            <p className="admin-page-subtitle">{book.title}</p>
+          </div>
+          <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+            <Link href={`/book/${book.id}`} target="_blank" className="btn btn-secondary" style={{ fontSize: "0.8125rem" }}>
+              সাইটে দেখুন ↗
+            </Link>
+          </div>
+        </div>
       </div>
       <BookForm
         mode="edit"

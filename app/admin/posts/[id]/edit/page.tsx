@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import PostForm from "@/components/admin/PostForm"
 
@@ -64,8 +65,17 @@ export default function AdminPostEditPage() {
   return (
     <div className="admin-page">
       <div className="admin-page-header">
-        <h1 className="admin-page-title">পোস্ট এডিট করুন</h1>
-        <p className="admin-page-subtitle">{post.title}</p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <h1 className="admin-page-title">পোস্ট এডিট করুন</h1>
+            <p className="admin-page-subtitle">{post.title}</p>
+          </div>
+          <div style={{ display: "flex", gap: "var(--sp-2)" }}>
+            <Link href={`/blog/${post.slug}`} target="_blank" className="btn btn-secondary" style={{ fontSize: "0.8125rem" }}>
+              সাইটে দেখুন ↗
+            </Link>
+          </div>
+        </div>
       </div>
       <PostForm
         mode="edit"
