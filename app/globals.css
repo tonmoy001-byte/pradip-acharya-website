@@ -1612,12 +1612,14 @@ p {
   text-decoration: none;
   font-size: 0.875rem;
   transition: all 0.15s ease;
+  border-left: 3px solid transparent;
 }
 
 .admin-sidebar-link:hover,
 .admin-sidebar-link-active {
   color: var(--white);
   background: rgba(255, 255, 255, 0.1);
+  border-left-color: var(--terracotta);
 }
 
 .admin-sidebar-footer {
@@ -1667,6 +1669,12 @@ p {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--sp-5);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.admin-stat-card:hover {
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
 }
 
 .admin-stat-label {
@@ -1720,6 +1728,12 @@ p {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
 }
 
 .admin-table th {

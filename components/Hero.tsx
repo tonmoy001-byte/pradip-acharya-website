@@ -2,7 +2,12 @@
 
 import Link from "next/link"
 
-export default function Hero() {
+interface HeroProps {
+  title?: string
+  subtitle?: string
+}
+
+export default function Hero({ title, subtitle }: HeroProps) {
   return (
     <section className="hero" aria-label="হিরো ব্যানার">
       <div className="hero-slide active">
@@ -20,8 +25,8 @@ export default function Hero() {
         <div className="hero-overlay" />
       </div>
       <div className="hero-content">
-        <p className="hero-subtitle">প্রদীপ কুমার আচার্য্যের</p>
-        <h1 className="hero-title">ছেঁড়া পুষ্প</h1>
+        <p className="hero-subtitle">{subtitle || "প্রদীপ কুমার আচার্য্যের"}</p>
+        <h1 className="hero-title">{title || "ছেঁড়া পুষ্প"}</h1>
         <p className="hero-desc">
           বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস। স্মৃতি ও বর্তমানের এক অনন্য মিলন।
         </p>

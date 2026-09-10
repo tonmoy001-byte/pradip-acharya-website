@@ -7,12 +7,34 @@ import ScrollReveal from "@/components/ScrollReveal"
 
 export const dynamic = "force-dynamic"
 
+async function getSettings() {
+  try {
+    const base = process.env.NEXT_PUBLIC_INSFORGE_URL || "https://cpd9mnqf.ap-southeast.insforge.app"
+    const key = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || ""
+    const res = await fetch(`${base}/rest/v1/rpc/get_site_settings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${key}` },
+      body: "{}",
+      next: { revalidate: 60 },
+    })
+    return res.ok ? await res.json() : {}
+  } catch {
+    return {}
+  }
+}
+
 export default async function HomePage() {
-  const [featured, newReleases, trending] = await Promise.all([
+  const [featured, newReleases, trending, settings] = await Promise.all([
     getFeatured(),
     getNewReleases(),
     getTrending(),
+    getSettings(),
   ])
+
+  const heroTitle = settings.hero_title || "বাংলা সাহিত্যের নতুন অধ্যায়"
+  const heroSubtitle = settings.hero_subtitle || "প্রদীপ কুমার আচার্য্যের সাহিত্যকর্মে জীবনের গভীরতা ও মানবিক অনুভূতি"
+  const promoText = settings.promo_banner_text || "৭৫০ টাকার বেশি অর্ডারে বিনামূল্যে ডেলিভারি। এখনই অর্ডার করুন।"
+  const footerText = settings.footer_text || ""
 
   return (
     <>
@@ -22,13 +44,13 @@ export default async function HomePage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "WebSite",
-            name: "প্রদীপ কুমার আচার্য্য",
-            description: "বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস।",
+            name: settings.site_name || "প্রদীপ কুমার আচার্য্য",
+            description: settings.site_tagline || "বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস।",
             url: "/",
           }),
         }}
       />
-      <Hero />
+      <Hero title={heroTitle} subtitle={heroSubtitle} />
 
       {/* Author Intro */}
       <section className="section-padding">
@@ -147,17 +169,19 @@ export default async function HomePage() {
       )}
 
       {/* Promo Strip */}
-      <section className="section-padding">
-        <div className="container" style={{ textAlign: "center" }}>
-          <ScrollReveal>
-            <h2 style={{ marginBottom: "var(--sp-4)" }}>বিশেষ অফার</h2>
-            <p style={{ fontSize: "1.0625rem", marginBottom: "var(--sp-6)", maxWidth: 500, marginInline: "auto" }}>
-              ৭৫০ টাকার বেশি অর্ডারে বিনামূল্যে ডেলিভারি। এখনই অর্ডার করুন।
-            </p>
-            <Link href="/books" className="btn btn-primary">সকল বই দেখুন</Link>
-          </ScrollReveal>
-        </div>
-      </section>
+      {promoText && (
+        <section className="section-padding">
+          <div className="container" style={{ textAlign: "center" }}>
+            <ScrollReveal>
+              <h2 style={{ marginBottom: "var(--sp-4)" }}>বিশেষ অফার</h2>
+              <p style={{ fontSize: "1.0625rem", marginBottom: "var(--sp-6)", maxWidth: 500, marginInline: "auto" }}>
+                {promoText}
+              </p>
+              <Link href="/books" className="btn btn-primary">সকল বই দেখুন</Link>
+            </ScrollReveal>
+          </div>
+        </section>
+      )}
 
       {/* Newsletter */}
       <section className="section-padding" style={{ background: "var(--ink)", color: "var(--white)" }}>
@@ -184,6 +208,11 @@ export default async function HomePage() {
               />
               <button className="btn btn-primary">সাবস্ক্রাইব</button>
             </div>
+            {footerText && (
+              <p style={{ color: "rgba(255,255,255,0.5)", marginTop: "var(--sp-6)", fontSize: "0.8125rem" }}>
+                {footerText}
+              </p>
+            )}
           </ScrollReveal>
         </div>
       </section>
