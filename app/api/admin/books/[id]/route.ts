@@ -47,7 +47,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       p_is_new: body.is_new || false,
       p_trending: body.trending || false,
       p_is_demo: body.is_demo || false,
-      p_formats: JSON.stringify(body.formats || []),
+      p_formats: body.formats || [],
     })
 
     if (error) {
