@@ -1,0 +1,32 @@
+import { NextResponse } from "next/server"
+import { requireAdmin } from "@/lib/auth-helpers"
+import { createServerClient } from "@/lib/insforge-server"
+
+export async function POST(req: Request) {
+  try {
+    await requireAdmin()
+    const formData = await req.formData()
+    const file = formData.get("file") as File | null
+
+    if (!file) {
+      return NextResponse.json({ error: "No file provided" }, { status: 400 })
+    }
+
+    const client = await createServerClient()
+    const ext = file.name.split(".").pop() || "jpg"
+    const filename = `posts/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`
+
+    const { error } = await client.storage
+      .from("book-covers")
+      .upload(filename, file)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ path: filename })
+  } catch (err: any) {
+    if (err instanceof Response) return err
+    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+  }
+}

@@ -1,5 +1,5 @@
 // app/admin/layout.tsx
-// Admin panel layout — dark sidebar with Orders nav link.
+// Admin panel layout — dark sidebar with full navigation.
 
 import Link from "next/link"
 
@@ -16,10 +16,30 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <span className="admin-sidebar-title">অ্যাডমিন</span>
         </div>
         <nav className="admin-sidebar-nav">
+          <Link href="/admin/dashboard" className="admin-sidebar-link">
+            ড্যাশবোর্ড
+          </Link>
+          <Link href="/admin/books" className="admin-sidebar-link">
+            বই ম্যানেজমেন্ট
+          </Link>
+          <Link href="/admin/posts" className="admin-sidebar-link">
+            পোস্ট ম্যানেজমেন্ট
+          </Link>
           <Link href="/admin/orders" className="admin-sidebar-link">
             অর্ডার
           </Link>
+          <Link href="/admin/customers" className="admin-sidebar-link">
+            গ্রাহক
+          </Link>
+          <Link href="/admin/settings" className="admin-sidebar-link">
+            সেটিংস
+          </Link>
         </nav>
+        <div className="admin-sidebar-footer">
+          <Link href="/" className="admin-sidebar-link" target="_blank">
+            সাইট দেখুন ↗
+          </Link>
+        </div>
       </aside>
       <main className="admin-main">{children}</main>
     </div>

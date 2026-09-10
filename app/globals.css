@@ -1620,6 +1620,15 @@ p {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.admin-sidebar-footer {
+  margin-top: auto;
+  padding-top: var(--sp-6);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+}
+
 /* Main */
 .admin-main {
   padding: var(--sp-8) var(--sp-10);
@@ -1899,6 +1908,107 @@ p {
   color: #3730a3;
 }
 
+/* ==========================================================
+   Admin Forms
+   ========================================================== */
+
+.admin-form {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  padding: var(--sp-6);
+}
+
+.admin-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-4) var(--sp-5);
+}
+
+.admin-form-span-2 {
+  grid-column: span 2;
+}
+
+.admin-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+}
+
+.admin-label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.admin-textarea {
+  resize: vertical;
+  min-height: 80px;
+  font-family: inherit;
+}
+
+.admin-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.admin-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--terracotta);
+}
+
+/* Alerts */
+.admin-alert {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--radius-sm);
+  font-size: 0.875rem;
+}
+
+.admin-alert-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.admin-alert-success {
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+/* Modal */
+.admin-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.admin-modal {
+  background: var(--white);
+  border-radius: var(--radius-md);
+  padding: var(--sp-6);
+  max-width: 420px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+/* Filters */
+.admin-filters {
+  display: flex;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-5);
+  flex-wrap: wrap;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .admin-layout {
@@ -1911,5 +2021,17 @@ p {
 
   .admin-stats {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .admin-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-form-span-2 {
+    grid-column: span 1;
+  }
+
+  .admin-table {
+    font-size: 0.8125rem;
   }
 }
