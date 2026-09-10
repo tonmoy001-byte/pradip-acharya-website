@@ -18,6 +18,7 @@ interface PostFormProps {
     tags: string[]
     meta_title: string
     meta_description: string
+    author_name: string | null
   }
   mode: "create" | "edit"
 }
@@ -37,6 +38,7 @@ export default function PostForm({ initial, mode }: PostFormProps) {
   const [tagsInput, setTagsInput] = useState((initial?.tags || []).join(", "))
   const [metaTitle, setMetaTitle] = useState(initial?.meta_title || "")
   const [metaDescription, setMetaDescription] = useState(initial?.meta_description || "")
+  const [authorName, setAuthorName] = useState(initial?.author_name || "প্রদীপ কুমার আচার্য্য")
   const [uploading, setUploading] = useState(false)
 
   const autoSlug = (t: string) =>
@@ -92,6 +94,7 @@ export default function PostForm({ initial, mode }: PostFormProps) {
         tags,
         meta_title: metaTitle || null,
         meta_description: metaDescription || null,
+        author_name: authorName || null,
       }
 
       const url = mode === "create"
@@ -149,6 +152,11 @@ export default function PostForm({ initial, mode }: PostFormProps) {
             <option value="published">প্রকাশিত</option>
             <option value="archived">আর্কাইভ</option>
           </select>
+        </div>
+
+        <div className="admin-form-group admin-form-span-2">
+          <label className="admin-label">লেখকের নাম</label>
+          <input className="admin-input" value={authorName} onChange={(e) => setAuthorName(e.target.value)} placeholder="প্রদীপ কুমার আচার্য্য" />
         </div>
 
         <div className="admin-form-group admin-form-span-2">

@@ -16,6 +16,7 @@ interface PostData {
   tags: string[]
   meta_title: string
   meta_description: string
+  author_name: string | null
 }
 
 export default function AdminPostEditPage() {
@@ -80,6 +81,7 @@ export default function AdminPostEditPage() {
           tags: post.tags || [],
           meta_title: post.meta_title || "",
           meta_description: post.meta_description || "",
+          author_name: post.author_name || "",
         }}
       />
     </div>

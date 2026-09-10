@@ -10,8 +10,8 @@ export async function GET(req: Request) {
     const search = searchParams.get("search") || ""
 
     const { data: profiles, error: profErr } = await client.database
-      .from("profiles")
-      .select("user_id, display_name, created_at")
+      .from("customer_profiles")
+      .select("user_id, display_name, email, created_at")
 
     if (profErr) {
       return NextResponse.json({ error: profErr.message }, { status: 500 })
@@ -34,6 +34,7 @@ export async function GET(req: Request) {
         return {
           user_id: c.user_id,
           display_name: c.display_name || "—",
+          email: c.email || "—",
           created_at: c.created_at,
           orderCount,
           totalSpent,
@@ -45,7 +46,10 @@ export async function GET(req: Request) {
     if (search) {
       const q = search.toLowerCase()
       filtered = customersWithOrders.filter(
-        (c) => c.display_name.toLowerCase().includes(q) || c.user_id.includes(q)
+        (c) =>
+          (c.display_name && c.display_name.toLowerCase().includes(q)) ||
+          (c.email && c.email.toLowerCase().includes(q)) ||
+          c.user_id.includes(q)
       )
     }
 

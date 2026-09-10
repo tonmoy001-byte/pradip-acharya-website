@@ -7,6 +7,7 @@ import { money } from "@/lib/format"
 interface Customer {
   user_id: string
   display_name: string
+  email: string
   created_at: string
   orderCount: number
   totalSpent: number
@@ -61,7 +62,7 @@ export default function AdminCustomersPage() {
             <thead>
               <tr>
                 <th>নাম</th>
-                <th>ইউজার আইডি</th>
+                <th>ইমেইল</th>
                 <th>অর্ডার</th>
                 <th>মোট খরচ</th>
                 <th>যোগদান</th>
@@ -72,9 +73,7 @@ export default function AdminCustomersPage() {
               {customers.map((c) => (
                 <tr key={c.user_id}>
                   <td style={{ fontWeight: 500 }}>{c.display_name}</td>
-                  <td style={{ fontFamily: "monospace", fontSize: "0.75rem", color: "var(--ink-muted)" }}>
-                    {c.user_id.slice(0, 8)}...
-                  </td>
+                  <td style={{ fontSize: "0.8125rem" }}>{c.email}</td>
                   <td>{c.orderCount}</td>
                   <td>{c.totalSpent > 0 ? money(c.totalSpent) : "—"}</td>
                   <td style={{ fontSize: "0.8125rem" }}>{formatDate(c.created_at)}</td>

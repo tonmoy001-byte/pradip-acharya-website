@@ -61,7 +61,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ book_id: data })
+    // Update extra fields not handled by the RPC
+    const bookId = data as string
+    const { error: updateErr } = await client.database
+      .from("books")
+      .update({
+        publication_date: body.publication_date || null,
+        publisher: body.publisher || null,
+        isbn: body.isbn || null,
+        pages: body.pages || null,
+        language: body.language || null,
+      })
+      .eq("id", bookId)
+
+    if (updateErr) {
+      return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ book_id: bookId })
   } catch (err: any) {
     if (err instanceof Response) return err
     return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })

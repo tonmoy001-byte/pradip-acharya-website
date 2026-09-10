@@ -29,6 +29,11 @@ interface BookFormProps {
     is_new: boolean
     trending: boolean
     is_demo: boolean
+    publication_date: string | null
+    publisher: string | null
+    isbn: string | null
+    pages: number | null
+    language: string | null
     formats: BookFormatInput[]
   }
   mode: "create" | "edit"
@@ -56,6 +61,11 @@ export default function BookForm({ initial, mode }: BookFormProps) {
   const [isNew, setIsNew] = useState(initial?.is_new || false)
   const [trending, setTrending] = useState(initial?.trending || false)
   const [isDemo, setIsDemo] = useState(initial?.is_demo || false)
+  const [publicationDate, setPublicationDate] = useState(initial?.publication_date || "")
+  const [publisher, setPublisher] = useState(initial?.publisher || "")
+  const [isbn, setIsbn] = useState(initial?.isbn || "")
+  const [pages, setPages] = useState(initial?.pages || "")
+  const [language, setLanguage] = useState(initial?.language || "Bengali")
   const [formats, setFormats] = useState<BookFormatInput[]>(
     initial?.formats || DEFAULT_FORMATS
   )
@@ -113,6 +123,11 @@ export default function BookForm({ initial, mode }: BookFormProps) {
         is_new: isNew,
         trending,
         is_demo: isDemo,
+        publication_date: publicationDate || null,
+        publisher: publisher || null,
+        isbn: isbn || null,
+        pages: pages ? parseInt(String(pages)) || null : null,
+        language: language || null,
         formats: formats
           .filter((f) => f.name && f.price)
           .map((f) => ({
@@ -190,6 +205,35 @@ export default function BookForm({ initial, mode }: BookFormProps) {
         <div className="admin-form-group admin-form-span-2">
           <label className="admin-label">সিনোপসিস</label>
           <textarea className="admin-input admin-textarea" value={synopsis} onChange={(e) => setSynopsis(e.target.value)} rows={4} />
+        </div>
+
+        {/* Publication Details */}
+        <div className="admin-form-group admin-form-span-2">
+          <label className="admin-label">প্রকাশনার তথ্য</label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "var(--sp-3)" }}>
+            <div>
+              <label className="admin-label" style={{ fontSize: "0.75rem" }}>প্রকাশনার তারিখ</label>
+              <input className="admin-input" type="date" value={publicationDate} onChange={(e) => setPublicationDate(e.target.value)} />
+            </div>
+            <div>
+              <label className="admin-label" style={{ fontSize: "0.75rem" }}>প্রকাশক</label>
+              <input className="admin-input" value={publisher} onChange={(e) => setPublisher(e.target.value)} placeholder="যেমন: প্রথমা প্রকাশনী" />
+            </div>
+            <div>
+              <label className="admin-label" style={{ fontSize: "0.75rem" }}>ভাষা</label>
+              <input className="admin-input" value={language} onChange={(e) => setLanguage(e.target.value)} placeholder="Bengali" />
+            </div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-3)", marginTop: "var(--sp-3)" }}>
+            <div>
+              <label className="admin-label" style={{ fontSize: "0.75rem" }}>ISBN</label>
+              <input className="admin-input" value={isbn} onChange={(e) => setIsbn(e.target.value)} placeholder="978-..." />
+            </div>
+            <div>
+              <label className="admin-label" style={{ fontSize: "0.75rem" }}>পৃষ্ঠা সংখ্যা</label>
+              <input className="admin-input" type="number" value={pages} onChange={(e) => setPages(e.target.value)} placeholder="যেমন: 320" />
+            </div>
+          </div>
         </div>
 
         {/* Cover Image */}

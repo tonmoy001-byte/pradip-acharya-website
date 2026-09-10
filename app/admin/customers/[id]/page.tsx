@@ -16,6 +16,7 @@ interface Order {
 interface Customer {
   user_id: string
   display_name: string
+  email: string
   created_at: string
 }
 
@@ -95,6 +96,8 @@ export default function AdminCustomerDetailPage() {
           <dl style={{ display: "grid", gridTemplateColumns: "120px 1fr", gap: "var(--sp-3)", fontSize: "0.875rem" }}>
             <dt style={{ color: "var(--ink-muted)" }}>নাম</dt>
             <dd>{customer.display_name}</dd>
+            <dt style={{ color: "var(--ink-muted)" }}>ইমেইল</dt>
+            <dd>{customer.email || "—"}</dd>
             <dt style={{ color: "var(--ink-muted)" }}>ইউজার আইডি</dt>
             <dd style={{ fontFamily: "monospace", fontSize: "0.8125rem" }}>{customer.user_id}</dd>
             <dt style={{ color: "var(--ink-muted)" }}>যোগদান</dt>
@@ -115,7 +118,7 @@ export default function AdminCustomerDetailPage() {
               {orders.map((o) => (
                 <Link
                   key={o.id}
-                  href={`/admin/orders`}
+                  href={`/admin/orders/${o.id}`}
                   style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "var(--sp-2)", borderRadius: 4, border: "1px solid var(--border)", textDecoration: "none", color: "inherit", fontSize: "0.875rem" }}
                 >
                   <div>

@@ -50,6 +50,14 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Update author_name if provided (RPC doesn't handle it)
+    if (body.author_name !== undefined) {
+      await client.database
+        .from("posts")
+        .update({ author_name: body.author_name })
+        .eq("id", id)
+    }
+
     return NextResponse.json({ success: true })
   } catch (err: any) {
     if (err instanceof Response) return err

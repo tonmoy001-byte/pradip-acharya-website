@@ -61,7 +61,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    return NextResponse.json({ post_id: data })
+    // Update author_name if provided (RPC hardcodes it)
+    const postId = data as string
+    if (body.author_name) {
+      await client.database
+        .from("posts")
+        .update({ author_name: body.author_name })
+        .eq("id", postId)
+    }
+
+    return NextResponse.json({ post_id: postId })
   } catch (err: any) {
     if (err instanceof Response) return err
     return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })

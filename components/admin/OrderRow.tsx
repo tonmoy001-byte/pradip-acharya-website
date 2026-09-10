@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { money } from "@/lib/format"
 import { showToast } from "./Toast"
 import ApproveModal from "./ApproveModal"
@@ -103,26 +104,32 @@ export default function OrderRow({ order }: { order: AdminOrder }) {
         </td>
         <td>{order.created_at ? new Date(order.created_at).toLocaleDateString("bn-BD") : "—"}</td>
         <td>
-          {order.payment_status === "pending_verification" ? (
-            <div className="admin-action-btns">
-              <button
-                className="btn btn-sm btn-primary"
-                disabled={actionLoading}
-                onClick={() => setShowApprove(true)}
-              >
-                কনফার্ম
-              </button>
-              <button
-                className="btn btn-sm btn-secondary"
-                disabled={actionLoading}
-                onClick={() => setShowReject(true)}
-              >
-                বাতিল
-              </button>
-            </div>
-          ) : (
-            <span className="admin-no-action">—</span>
-          )}
+          <div className="admin-action-btns">
+            <Link
+              href={`/admin/orders/${order.id}`}
+              className="btn btn-sm btn-secondary"
+            >
+              বিস্তারিত
+            </Link>
+            {order.payment_status === "pending_verification" && (
+              <>
+                <button
+                  className="btn btn-sm btn-primary"
+                  disabled={actionLoading}
+                  onClick={() => setShowApprove(true)}
+                >
+                  কনফার্ম
+                </button>
+                <button
+                  className="btn btn-sm btn-secondary"
+                  disabled={actionLoading}
+                  onClick={() => setShowReject(true)}
+                >
+                  বাতিল
+                </button>
+              </>
+            )}
+          </div>
         </td>
       </tr>
 

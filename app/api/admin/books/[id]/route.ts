@@ -54,6 +54,22 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    // Update extra fields not handled by the RPC
+    const { error: updateErr } = await client.database
+      .from("books")
+      .update({
+        publication_date: body.publication_date || null,
+        publisher: body.publisher || null,
+        isbn: body.isbn || null,
+        pages: body.pages || null,
+        language: body.language || null,
+      })
+      .eq("id", id)
+
+    if (updateErr) {
+      return NextResponse.json({ error: updateErr.message }, { status: 500 })
+    }
+
     return NextResponse.json({ success: true })
   } catch (err: any) {
     if (err instanceof Response) return err

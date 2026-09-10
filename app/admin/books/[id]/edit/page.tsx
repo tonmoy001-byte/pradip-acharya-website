@@ -27,6 +27,11 @@ interface BookData {
   is_new: boolean
   trending: boolean
   is_demo: boolean
+  publication_date: string | null
+  publisher: string | null
+  isbn: string | null
+  pages: number | null
+  language: string | null
   book_formats: Array<{
     format_name: string
     price: number
@@ -101,6 +106,11 @@ export default function AdminBookEditPage() {
           is_new: book.is_new,
           trending: book.trending,
           is_demo: book.is_demo,
+          publication_date: book.publication_date,
+          publisher: book.publisher,
+          isbn: book.isbn,
+          pages: book.pages,
+          language: book.language,
           formats: book.book_formats.map((f) => ({
             name: f.format_name,
             price: String(f.price),

@@ -9,7 +9,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const client = await createServerClient()
 
     const [profileRes, ordersRes] = await Promise.all([
-      client.database.from("profiles").select("*").eq("user_id", id).single(),
+      client.database.from("customer_profiles").select("*").eq("user_id", id).single(),
       client.database.from("orders").select("*").eq("user_id", id).order("created_at", { ascending: false }),
     ])
 

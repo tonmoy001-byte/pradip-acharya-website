@@ -38,6 +38,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/posts" className="admin-sidebar-link">
             পোস্ট ম্যানেজমেন্ট
           </Link>
+          <Link href="/admin/categories" className="admin-sidebar-link">
+            ক্যাটাগরি
+          </Link>
           <Link href="/admin/orders" className="admin-sidebar-link">
             অর্ডার
           </Link>
