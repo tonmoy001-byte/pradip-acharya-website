@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
+import { resolveCoverImage } from "@/lib/api"
 
 interface BookFormatInput {
   name: string
@@ -86,7 +87,7 @@ export default function BookForm({ initial, mode }: BookFormProps) {
       const res = await fetch("/api/admin/books/upload", { method: "POST", body: fd })
       const d = await res.json()
       if (d.path) {
-        setCoverPrimary(`book-covers/${d.path}`)
+        setCoverPrimary(d.path)
       }
     } catch {}
     setUploading(false)
@@ -198,7 +199,7 @@ export default function BookForm({ initial, mode }: BookFormProps) {
             {coverPrimary && (
               <div style={{ position: "relative", width: 120, height: 160 }}>
                 <Image
-                  src={coverPrimary}
+                  src={resolveCoverImage(coverPrimary)}
                   alt="Cover"
                   fill
                   style={{ objectFit: "cover", borderRadius: 4 }}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { money } from "@/lib/format"
+import { resolveCoverImage } from "@/lib/api"
 import { useRouter } from "next/navigation"
 
 interface BookFormat {
@@ -135,7 +136,7 @@ export default function AdminBooksPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
                       {book.cover_primary && (
                         <img
-                          src={book.cover_primary}
+                          src={resolveCoverImage(book.cover_primary)}
                           alt={book.title}
                           style={{ width: 40, height: 56, objectFit: "cover", borderRadius: 4 }}
                         />

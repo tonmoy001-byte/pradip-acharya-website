@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
+import { resolveCoverImage } from "@/lib/api"
 
 interface PostFormProps {
   initial?: {
@@ -63,7 +64,7 @@ export default function PostForm({ initial, mode }: PostFormProps) {
       const res = await fetch("/api/admin/posts/upload", { method: "POST", body: fd })
       const d = await res.json()
       if (d.path) {
-        setCoverImage(`book-covers/${d.path}`)
+        setCoverImage(d.path)
       }
     } catch {}
     setUploading(false)
@@ -166,7 +167,7 @@ export default function PostForm({ initial, mode }: PostFormProps) {
           <div style={{ display: "flex", gap: "var(--sp-4)", alignItems: "flex-start" }}>
             {coverImage && (
               <div style={{ position: "relative", width: 160, height: 90 }}>
-                <Image src={coverImage} alt="Cover" fill style={{ objectFit: "cover", borderRadius: 4 }} />
+                <Image src={resolveCoverImage(coverImage)} alt="Cover" fill style={{ objectFit: "cover", borderRadius: 4 }} />
               </div>
             )}
             <div style={{ flex: 1 }}>
