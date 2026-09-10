@@ -2,6 +2,7 @@
 // Admin panel layout — dark sidebar with full navigation.
 
 import Link from "next/link"
+import AdminGuard from "@/components/admin/AdminGuard"
 
 export const metadata = {
   title: "অ্যাডমিন — প্রদীপ কুমার আচার্য্য",
@@ -41,7 +42,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Link>
         </div>
       </aside>
-      <main className="admin-main">{children}</main>
+      <main className="admin-main">
+        <AdminGuard>{children}</AdminGuard>
+      </main>
     </div>
   )
 }
