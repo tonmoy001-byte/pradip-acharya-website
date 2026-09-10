@@ -15,7 +15,8 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
 
       // If any admin API call returns 401, redirect to login once
       if ((res.status === 401 || res.status === 403) && !redirected.current) {
-        const url = typeof args[0] === "string" ? args[0] : args[0]?.url ?? ""
+        const input = args[0]
+        const url = typeof input === "string" ? input : input instanceof URL ? input.href : input?.url ?? ""
         if (url.includes("/api/admin") || url.includes("/api/profile")) {
           redirected.current = true
           router.replace("/login")
