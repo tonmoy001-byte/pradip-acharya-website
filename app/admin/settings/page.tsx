@@ -30,6 +30,14 @@ const SETTING_GROUPS = [
     ],
   },
   {
+    title: "ডেলিভারি",
+    category: "delivery",
+    fields: [
+      { key: "delivery_charge", label: "ডেলিভারি চার্জ (টাকা)", type: "number" },
+      { key: "free_delivery_threshold", label: "বিনামূল্যে ডেলিভারির ন্যূনতম (টাকা)", type: "number" },
+    ],
+  },
+  {
     title: "সোশ্যাল মিডিয়া",
     category: "social",
     fields: [
@@ -59,7 +67,7 @@ export default function AdminSettingsPage() {
       .finally(() => setLoading(false))
   }, [])
 
-  const updateValue = (key: string, value: string) => {
+  const updateValue = (key: string, value: string | number) => {
     setSettings((prev) => ({ ...prev, [key]: value }))
   }
 
@@ -67,10 +75,18 @@ export default function AdminSettingsPage() {
     setSaving(true)
     setSaved(false)
     try {
+      const settingsWithCategories: Record<string, { value: any; category: string }> = {}
+      for (const group of SETTING_GROUPS) {
+        for (const field of group.fields) {
+          if (settings[field.key] !== undefined) {
+            settingsWithCategories[field.key] = { value: settings[field.key], category: group.category }
+          }
+        }
+      }
       const res = await fetch("/api/admin/settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ settings, category: "general" }),
+        body: JSON.stringify({ settings: settingsWithCategories }),
       })
       if (res.ok) {
         setSaved(true)
@@ -133,6 +149,13 @@ export default function AdminSettingsPage() {
                       value={settings[field.key] || ""}
                       onChange={(e) => updateValue(field.key, e.target.value)}
                       rows={3}
+                    />
+                  ) : field.type === "number" ? (
+                    <input
+                      type="number"
+                      className="admin-input"
+                      value={settings[field.key] ?? ""}
+                      onChange={(e) => updateValue(field.key, e.target.value === "" ? "" : Number(e.target.value))}
                     />
                   ) : (
                     <input

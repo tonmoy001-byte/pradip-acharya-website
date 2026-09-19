@@ -6,9 +6,11 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react"
 import type { BookFormatName } from "./data"
+import { useAuth } from "./auth"
 
 export interface CartItem {
   bookId: string
@@ -32,38 +34,50 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | null>(null)
 
-const CART_KEY = "bookstore-cart"
+function cartKey(userId?: string | null): string {
+  return userId ? `bookstore-cart-${userId}` : "bookstore-cart-guest"
+}
 
-function getCartFromStorage(): CartItem[] {
+function getCartFromStorage(key: string): CartItem[] {
   if (typeof window === "undefined") return []
   try {
-    const stored = localStorage.getItem(CART_KEY)
+    const stored = localStorage.getItem(key)
     return stored ? JSON.parse(stored) : []
   } catch {
     return []
   }
 }
 
-function saveCartToStorage(items: CartItem[]) {
+function saveCartToStorage(key: string, items: CartItem[]) {
   if (typeof window === "undefined") return
-  localStorage.setItem(CART_KEY, JSON.stringify(items))
+  localStorage.setItem(key, JSON.stringify(items))
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
   const [items, setItems] = useState<CartItem[]>([])
   const [mounted, setMounted] = useState(false)
+  const prevUserId = useRef<string | null | undefined>(undefined)
 
   // Read localStorage after mount to avoid SSR hydration mismatch
   useEffect(() => {
-    setItems(getCartFromStorage())
+    setItems(getCartFromStorage(cartKey(user?.id)))
     setMounted(true)
   }, [])
 
+  // When user changes (login/logout), reload cart from the correct key
+  useEffect(() => {
+    if (!mounted) return
+    if (prevUserId.current === user?.id) return
+    prevUserId.current = user?.id
+    setItems(getCartFromStorage(cartKey(user?.id)))
+  }, [user?.id, mounted])
+
   useEffect(() => {
     if (mounted) {
-      saveCartToStorage(items)
+      saveCartToStorage(cartKey(user?.id), items)
     }
-  }, [items, mounted])
+  }, [items, mounted, user?.id])
 
   const addToCart = useCallback(
     (item: Omit<CartItem, "quantity"> & { quantity?: number }) => {

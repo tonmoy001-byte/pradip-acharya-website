@@ -6,8 +6,8 @@ export const dynamic = "force-dynamic"
 
 async function getPost(slug: string) {
   try {
-    const base = process.env.NEXT_PUBLIC_INSFORGE_URL || "https://cpd9mnqf.ap-southeast.insforge.app"
-    const key = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || ""
+    const base = process.env.NEXT_PUBLIC_INSFORGE_URL!
+    const key = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
     const res = await fetch(
       `${base}/rest/v1/posts?slug=eq.${slug}&status=eq.published&select=*`,
       { headers: { apikey: key, Authorization: `Bearer ${key}` } }

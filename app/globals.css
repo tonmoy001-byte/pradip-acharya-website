@@ -659,6 +659,21 @@ p {
   color: var(--ink);
 }
 
+.navbar-user-icon {
+  color: var(--terracotta);
+}
+
+.navbar-user-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  background: #22c55e;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+}
+
 .navbar-badge {
   position: absolute;
   top: 2px;

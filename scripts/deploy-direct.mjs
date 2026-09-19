@@ -130,7 +130,13 @@ console.log("Starting deployment build...");
 const startResult = await api("/api/deployments/" + encodeURIComponent(deploymentId) + "/start", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({}),
+  body: JSON.stringify({
+    envVars: [
+      { key: "RUPANTOR_PAY_API_KEY", value: "5p9CRvX54ZrBckRew9FgoySFDsJKfZEebHJGv5zNyspjEWXr2i" },
+      { key: "RUPANTOR_PAY_BASE_URL", value: "https://payment.rupantorpay.com/api/payment" },
+      { key: "NEXT_PUBLIC_SITE_URL", value: "https://cpd9mnqf.insforge.site" },
+    ],
+  }),
 });
 console.log("Deployment build started:", JSON.stringify(startResult));
 console.log("DEPLOYMENT_ID=" + deploymentId);

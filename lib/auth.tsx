@@ -28,7 +28,7 @@ export interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error?: string }>
   signUp: (email: string, password: string, name?: string) => Promise<{ error?: string; message?: string; requireEmailVerification?: boolean }>
   signOut: () => Promise<void>
-  verifyEmail: (email: string, otp: string) => Promise<{ error?: string; success?: boolean }>
+  verifyEmail: (email: string, otp: string, name?: string) => Promise<{ error?: string; success?: boolean }>
   resendVerification: (email: string) => Promise<{ error?: string; success?: boolean }>
   resetPassword: (email: string) => Promise<{ error?: string; success?: boolean }>
   refreshProfile: () => Promise<void>
@@ -42,7 +42,10 @@ async function fetchProfile(): Promise<AuthUser | null> {
     if (!res.ok) return null
     const json = await res.json()
     if (json.data) {
-      return { id: json.data.user_id, email: json.data.email || "", name: json.data.full_name || null }
+      const email = json.data.email || ""
+      const fullName = json.data.full_name || null
+      const name = fullName || email.split("@")[0] || null
+      return { id: json.data.user_id, email, name }
     }
     return null
   } catch {
@@ -93,8 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { message: result.message }
   }, [])
 
-  const verifyEmail = useCallback(async (email: string, otp: string) => {
-    const result = await verifyEmailAction(email, otp)
+  const verifyEmail = useCallback(async (email: string, otp: string, name?: string) => {
+    const result = await verifyEmailAction(email, otp, name)
     if (result.error) return { error: result.error }
     // After server action sets cookies, fetch profile
     const profile = await fetchProfile()

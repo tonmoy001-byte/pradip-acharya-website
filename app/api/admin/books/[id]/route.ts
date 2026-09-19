@@ -18,7 +18,26 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: error.message }, { status: 404 })
     }
 
-    return NextResponse.json({ book: data })
+    // Fetch digital assets and map to formats
+    const formatIds = (data.book_formats || []).map((f: any) => f.id)
+    let digitalAssets: any[] = []
+    if (formatIds.length > 0) {
+      const { data: assets } = await client.database
+        .from("digital_assets")
+        .select("id, format_id, storage_key, active")
+        .in("format_id", formatIds)
+        .eq("active", true)
+      digitalAssets = assets || []
+    }
+
+    // Attach storageKey to each format
+    const assetsByFormat = new Map(digitalAssets.map((a: any) => [a.format_id, a.storage_key]))
+    const formatsWithAssets = (data.book_formats || []).map((f: any) => ({
+      ...f,
+      storage_key: assetsByFormat.get(f.id) || null,
+    }))
+
+    return NextResponse.json({ book: { ...data, book_formats: formatsWithAssets } })
   } catch (err: any) {
     if (err instanceof Response) return err
     return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })

@@ -9,43 +9,83 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const search = searchParams.get("search") || ""
 
-    const { data: profiles, error: profErr } = await client.database
+    // Get admin user IDs to exclude from customer list
+    const { data: adminRows } = await client.database
+      .from("admin_memberships")
+      .select("user_id")
+    const adminIds = new Set((adminRows || []).map((r: any) => r.user_id))
+
+    // Get all customer profiles
+    const { data: profiles } = await client.database
       .from("customer_profiles")
       .select("user_id, display_name, email, created_at")
 
-    if (profErr) {
-      return NextResponse.json({ error: profErr.message }, { status: 500 })
+    const profileMap = new Map<string, any>()
+    for (const p of profiles || []) {
+      if (!adminIds.has(p.user_id)) {
+        profileMap.set(p.user_id, p)
+      }
     }
 
-    const customers = profiles || []
+    // Get all orders with user_id and contact info
+    const { data: orders } = await client.database
+      .from("orders")
+      .select("user_id, contact, total, payment_status, created_at")
+      .order("created_at", { ascending: false })
 
-    const customersWithOrders = await Promise.all(
-      customers.map(async (c: any) => {
-        const { data: orders } = await client.database
-          .from("orders")
-          .select("id, total, payment_status, created_at")
-          .eq("user_id", c.user_id)
+    // Build customer list from orders, excluding admins
+    const customerMap = new Map<string, {
+      user_id: string
+      display_name: string
+      email: string
+      created_at: string
+      orderCount: number
+      totalSpent: number
+    }>()
 
-        const orderCount = orders?.length || 0
-        const totalSpent = (orders || [])
-          .filter((o: any) => o.payment_status === "paid")
-          .reduce((sum: number, o: any) => sum + Number(o.total), 0)
+    for (const o of orders || []) {
+      const uid = o.user_id
+      if (!uid || adminIds.has(uid)) continue
 
-        return {
-          user_id: c.user_id,
-          display_name: c.display_name || "—",
-          email: c.email || "—",
-          created_at: c.created_at,
-          orderCount,
-          totalSpent,
-        }
-      })
-    )
+      if (!customerMap.has(uid)) {
+        const profile = profileMap.get(uid)
+        const contact = (o.contact || {}) as { name?: string; email?: string }
+        customerMap.set(uid, {
+          user_id: uid,
+          display_name: profile?.display_name || contact.name || "—",
+          email: profile?.email || contact.email || "—",
+          created_at: profile?.created_at || o.created_at,
+          orderCount: 0,
+          totalSpent: 0,
+        })
+      }
 
-    let filtered = customersWithOrders
+      const c = customerMap.get(uid)!
+      c.orderCount++
+      if (o.payment_status === "paid") {
+        c.totalSpent += Number(o.total)
+      }
+    }
+
+    // Also add profiles that have no orders yet
+    for (const [uid, profile] of profileMap) {
+      if (!customerMap.has(uid)) {
+        customerMap.set(uid, {
+          user_id: uid,
+          display_name: profile.display_name || "—",
+          email: profile.email || "—",
+          created_at: profile.created_at,
+          orderCount: 0,
+          totalSpent: 0,
+        })
+      }
+    }
+
+    let filtered = Array.from(customerMap.values())
+
     if (search) {
       const q = search.toLowerCase()
-      filtered = customersWithOrders.filter(
+      filtered = filtered.filter(
         (c) =>
           (c.display_name && c.display_name.toLowerCase().includes(q)) ||
           (c.email && c.email.toLowerCase().includes(q)) ||

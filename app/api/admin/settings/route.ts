@@ -29,11 +29,12 @@ export async function PUT(req: Request) {
     const body = await req.json()
     const client = await createServerClient()
 
-    for (const [key, value] of Object.entries(body.settings || {})) {
+    for (const [key, entry] of Object.entries(body.settings || {})) {
+      const setting = entry as { value: any; category: string }
       const { error } = await client.database.rpc("admin_upsert_setting", {
         p_key: key,
-        p_value: JSON.stringify(value),
-        p_category: body.category || "general",
+        p_value: JSON.stringify(setting.value),
+        p_category: setting.category || "general",
       })
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 })

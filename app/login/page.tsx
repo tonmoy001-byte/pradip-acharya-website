@@ -53,8 +53,9 @@ export default function LoginPage() {
         if (result.error) {
           setError(result.error)
         } else if (result.requireEmailVerification) {
-          // Save email for the verify page
+          // Save email and name for the verify page
           localStorage.setItem("pending_verification_email", email)
+          if (name) localStorage.setItem("pending_verification_name", name)
           router.push(`/verify?email=${encodeURIComponent(email)}`)
         } else if (result.message) {
           setMessage(result.message)

@@ -97,11 +97,12 @@ export default function VerifyPage() {
 
     setSubmitting(true)
     try {
-      const result = await verifyEmail(email.trim(), code)
+      const result = await verifyEmail(email.trim(), code, localStorage.getItem("pending_verification_name") || undefined)
       if (result.error) {
         setError(result.error)
       } else if (result.success) {
         localStorage.removeItem("pending_verification_email")
+        localStorage.removeItem("pending_verification_name")
         setMessage("ইমেইল যাচাই সফল হয়েছে! এখন সাইন ইন করুন।")
         setTimeout(() => router.push("/login"), 2000)
       }

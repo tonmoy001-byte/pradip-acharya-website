@@ -10,8 +10,8 @@ export const metadata: Metadata = {
 
 async function getPosts() {
   try {
-    const base = process.env.NEXT_PUBLIC_INSFORGE_URL || "https://cpd9mnqf.ap-southeast.insforge.app"
-    const key = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || ""
+    const base = process.env.NEXT_PUBLIC_INSFORGE_URL!
+    const key = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
     const res = await fetch(`${base}/rest/v1/posts?status=eq.published&order=published_at.desc`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
       next: { revalidate: 60 },

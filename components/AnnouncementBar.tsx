@@ -2,25 +2,37 @@
 
 import { useState, useEffect } from "react"
 
-const MESSAGES = [
+const FIXED_MESSAGES = [
   "প্রদীপ কুমার আচার্য্যের নতুন উপন্যাস — ছেঁড়া পুষ্প — এখন উপলব্ধ",
-  "৭৫০ টাকার বেশি অর্ডারে বিনামূল্যে ডেলিভারি",
   "সকল বইয়ে ডেমো পড়ার সুযোগ",
 ]
 
 export default function AnnouncementBar() {
+  const [messages, setMessages] = useState(FIXED_MESSAGES)
   const [index, setIndex] = useState(0)
 
   useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        const promo = data.promo_banner_text
+        if (promo) {
+          setMessages([promo, ...FIXED_MESSAGES])
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
     const interval = setInterval(() => {
-      setIndex((prev) => (prev + 1) % MESSAGES.length)
+      setIndex((prev) => (prev + 1) % messages.length)
     }, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, [messages.length])
 
   return (
     <div className="announcement-bar" role="status" aria-live="polite">
-      {MESSAGES[index]}
+      {messages[index]}
     </div>
   )
 }

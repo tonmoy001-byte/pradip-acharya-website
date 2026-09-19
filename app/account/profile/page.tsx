@@ -5,7 +5,6 @@ import { useAuth } from "@/lib/auth"
 
 interface ProfileData {
   full_name: string | null
-  phone: string | null
   email: string | null
   email_verified: boolean | null
   created_at: string | null
@@ -21,7 +20,6 @@ export default function AccountProfilePage() {
   const [success, setSuccess] = useState("")
 
   const [formName, setFormName] = useState("")
-  const [formPhone, setFormPhone] = useState("")
 
   useEffect(() => {
     if (authLoading || !user) return
@@ -36,7 +34,6 @@ export default function AccountProfilePage() {
           if (user?.email) {
             setProfile({
               full_name: user.name || null,
-              phone: null,
               email: user.email,
               email_verified: null,
               created_at: null,
@@ -51,20 +48,17 @@ export default function AccountProfilePage() {
         if (data) {
           setProfile({
             full_name: data.display_name || data.full_name || null,
-            phone: data.phone || null,
             email: data.email || user?.email || null,
             email_verified: data.email_verified ?? null,
             created_at: data.created_at || null,
           })
-          setFormName(data.display_name || data.full_name || "")
-          setFormPhone(data.phone || "")
+            setFormName(data.display_name || data.full_name || "")
         }
       } catch {
         // Don't show error if we have basic data from AuthProvider
         if (user?.email) {
           setProfile({
             full_name: user.name || null,
-            phone: null,
             email: user.email,
             email_verified: null,
             created_at: null,
@@ -91,7 +85,6 @@ export default function AccountProfilePage() {
     setError("")
     setSuccess("")
     setFormName(profile?.full_name || "")
-    setFormPhone(profile?.phone || "")
   }
 
   async function handleSave() {
@@ -106,7 +99,6 @@ export default function AccountProfilePage() {
         credentials: "include",
         body: JSON.stringify({
           full_name: formName.trim() || null,
-          phone: formPhone.trim() || null,
         }),
       })
 
@@ -119,7 +111,6 @@ export default function AccountProfilePage() {
 
       setProfile((prev) => ({
         full_name: formName.trim() || null,
-        phone: formPhone.trim() || null,
         email: prev?.email ?? null,
         email_verified: prev?.email_verified ?? null,
         created_at: prev?.created_at ?? null,
@@ -264,22 +255,6 @@ export default function AccountProfilePage() {
               </div>
             </div>
 
-            {/* Phone */}
-            <div style={{ marginBottom: "var(--sp-5)" }}>
-              <p
-                style={{
-                  fontSize: "0.8125rem",
-                  color: "var(--stone)",
-                  marginBottom: "var(--sp-1)",
-                }}
-              >
-                ফোন নম্বর
-              </p>
-              <p style={{ fontSize: "1rem", fontWeight: "var(--font-weight-medium)" }}>
-                {profile?.phone || "নির্ধারিত হয়নি"}
-              </p>
-            </div>
-
             {/* Account Created */}
             {profile?.created_at && (
               <div style={{ marginBottom: "var(--sp-5)" }}>
@@ -358,21 +333,6 @@ export default function AccountProfilePage() {
               <p style={{ fontSize: "0.75rem", color: "var(--stone)", marginTop: "var(--sp-1)" }}>
                 ইমেইল ঠিকানা পরিবর্তন করা যায় না
               </p>
-            </div>
-
-            {/* Phone */}
-            <div className="form-group" style={{ marginBottom: "var(--sp-6)" }}>
-              <label className="form-label" htmlFor="edit-phone">
-                ফোন নম্বর
-              </label>
-              <input
-                id="edit-phone"
-                type="tel"
-                className="form-input"
-                value={formPhone}
-                onChange={(e) => setFormPhone(e.target.value)}
-                placeholder="০১XXXXXXXXX"
-              />
             </div>
 
             {/* Actions */}

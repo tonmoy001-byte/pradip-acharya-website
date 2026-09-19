@@ -8,9 +8,10 @@
 import { cookies } from "next/headers"
 import { createAuthActions } from "@insforge/sdk/ssr"
 import { createClient } from "@insforge/sdk"
+import { createServerClient } from "@/lib/insforge-server"
 
-const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL || "https://cpd9mnqf.ap-southeast.insforge.app"
-const INSFORGE_ANON_KEY = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || "anon_34290d5cd8a56b6f0a9885ad57385af0fe4d38bd8fe02104e94f3f36d8b705e2"
+const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL!
+const INSFORGE_ANON_KEY = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
 
 function getBasicClient() {
   return createClient({
@@ -41,6 +42,31 @@ export async function signUp(email: string, password: string, name?: string) {
         message: "অ্যাকাউন্ট তৈরি হয়েছে। আপনার ইমেইলে একটি যাচাইকরণ কোড পাঠানো হয়েছে। কোডটি প্রবেশ করুন।",
       }
     }
+
+    // No email verification required — save name to profiles now
+    if (name) {
+      try {
+        const client = await createServerClient()
+        // Get user ID from the server client (result.data?.user?.id may be null)
+        const { data: userData } = await client.auth.getCurrentUser()
+        const userId = userData?.user?.id
+        if (userId) {
+          const { data: existing } = await client.database
+            .from("profiles")
+            .select("user_id")
+            .eq("user_id", userId)
+            .maybeSingle()
+          if (existing) {
+            await client.database.from("profiles").update({ display_name: name }).eq("user_id", userId)
+          } else {
+            await client.database.from("profiles").insert([{ user_id: userId, display_name: name }])
+          }
+        }
+      } catch (e) {
+        console.error("[signUp] Failed to save name:", e)
+      }
+    }
+
     return { user: result.data?.user ?? null, message: "অ্যাকাউন্ট তৈরি হয়েছে।" }
   } catch (e: any) {
     return { error: e?.message || "Server error during sign up" }
@@ -58,11 +84,36 @@ export async function signOut() {
   }
 }
 
-export async function verifyEmailAction(email: string, otp: string) {
+export async function verifyEmailAction(email: string, otp: string, name?: string) {
   try {
     const auth = createAuthActions({ cookies: await cookies(), baseUrl: INSFORGE_URL, anonKey: INSFORGE_ANON_KEY })
     const result = await auth.verifyEmail({ email, otp })
     if (result.error) return { error: result.error.message || "Verification failed" }
+
+    // After verification, save the name to the profiles table
+    if (name) {
+      try {
+        const client = await createServerClient()
+        // Get user ID from the server client (result.data?.user?.id may be null)
+        const { data: userData } = await client.auth.getCurrentUser()
+        const userId = userData?.user?.id
+        if (userId) {
+          const { data: existing } = await client.database
+            .from("profiles")
+            .select("user_id")
+            .eq("user_id", userId)
+            .maybeSingle()
+          if (existing) {
+            await client.database.from("profiles").update({ display_name: name }).eq("user_id", userId)
+          } else {
+            await client.database.from("profiles").insert([{ user_id: userId, display_name: name }])
+          }
+        }
+      } catch (e) {
+        console.error("[verifyEmailAction] Failed to save name:", e)
+      }
+    }
+
     return { user: result.data?.user ?? null, success: true }
   } catch (e: any) {
     return { error: e?.message || "Server error during verification" }

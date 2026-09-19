@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { sanitizePostgREST } from "@/lib/sanitize"
 
 export async function GET(req: Request) {
   try {
@@ -16,7 +17,8 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false })
 
     if (search) {
-      query = query.or(`title.ilike.%${search}%,author.ilike.%${search}%`)
+      const safe = sanitizePostgREST(search)
+      query = query.or(`title.ilike.%${safe}%,author.ilike.%${safe}%`)
     }
     if (category) {
       query = query.eq("category", category)
@@ -28,9 +30,10 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ books: data || [] })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    const message = err instanceof Error ? err.message : "Internal server error"
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 

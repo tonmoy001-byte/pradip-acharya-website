@@ -21,7 +21,8 @@ interface SavedAddress {
 export default function CheckoutPage() {
   const { items, subtotal, clearCart } = useCart()
   const { user } = useAuth()
-  const delivery = deliveryCharge(subtotal)
+  const hasPhysical = items.some((i) => i.format === "Paperback")
+  const delivery = hasPhysical ? deliveryCharge(subtotal) : 0
   const total = subtotal + delivery
 
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([])
@@ -32,10 +33,18 @@ export default function CheckoutPage() {
     name: "", email: "", phone: "",
     address: "", city: "", zip: "",
   })
+  const [paymentMethod, setPaymentMethod] = useState<"rupantor" | "cod">("rupantor")
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [serverError, setServerError] = useState("")
   const [orderResult, setOrderResult] = useState<any>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Reset to online payment when cart becomes eBook-only
+  useEffect(() => {
+    if (!hasPhysical && paymentMethod === "cod") {
+      setPaymentMethod("rupantor")
+    }
+  }, [hasPhysical, paymentMethod])
 
   // Fetch saved addresses when logged in
   useEffect(() => {
@@ -104,7 +113,6 @@ export default function CheckoutPage() {
     return Object.keys(e).length === 0
   }
 
-  // Step 1: Submit form → create order
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!validate() || items.length === 0) return
@@ -130,16 +138,46 @@ export default function CheckoutPage() {
             city: form.city,
             postal_code: form.zip,
           } : null,
+          paymentMethod: paymentMethod,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || "অর্ডার তৈরি ব্যর্থ হয়েছে")
 
-      clearCart()
-      setOrderResult({
-        order_id: data.data.order_id || data.data.id,
-        total: total,
-      })
+      const orderId = data.data.order_id || data.data.id
+
+      if (paymentMethod === "rupantor") {
+        const payRes = await fetch("/api/payment/create", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ order_id: orderId }),
+        })
+        const payData = await payRes.json()
+        if (!payRes.ok) throw new Error(payData.error || "পেমেন্ট তৈরি ব্যর্থ")
+
+        // Validate payment URL to prevent open redirect
+        const paymentUrl = payData.payment_url as string
+        const allowedHosts = ["payment.rupantorpay.com"]
+        try {
+          const parsedUrl = new URL(paymentUrl)
+          if (!allowedHosts.includes(parsedUrl.hostname)) {
+            throw new Error("অনুমোদিত পেমেন্ট গেটওয়ে নয়")
+          }
+        } catch {
+          throw new Error("অবৈধ পেমেন্ট URL")
+        }
+
+        // Cart will be cleared on /payment/success after confirmed payment
+        window.location.href = paymentUrl
+      } else {
+        clearCart()
+        setOrderResult({
+          order_id: orderId,
+          total: total,
+          payment_method: paymentMethod,
+        })
+      }
     } catch (err: any) {
       setServerError(err.message || "একটি ত্রুটি ঘটেছে। আবার চেষ্টা করুন।")
     } finally {
@@ -159,7 +197,7 @@ export default function CheckoutPage() {
             মোট: {money(orderResult.total)}
           </p>
           <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)" }}>
-            পেমেন্ট: ক্যাশ অন ডেলিভারি
+            পেমেন্ট: {orderResult.payment_method === "rupantor" ? "অনলাইন পেমেন্ট" : "ক্যাশ অন ডেলিভারি"}
           </p>
           <div style={{ display: "flex", gap: "var(--sp-3)", flexWrap: "wrap", marginTop: "var(--sp-4)" }}>
             <Link href="/account/orders" className="btn btn-primary">আমার অর্ডার</Link>
@@ -322,15 +360,59 @@ export default function CheckoutPage() {
             {/* Payment */}
             <div className="checkout-section">
               <h2>পেমেন্ট পদ্ধতি</h2>
-              <div style={{
-                padding: "var(--sp-3) var(--sp-4)", border: "1px solid var(--border)",
-                borderRadius: "var(--radius-md)", background: "var(--white)",
-              }}>
-                <span style={{ fontWeight: 600 }}>ক্যাশ অন ডেলিভারি</span>
-                <span style={{ fontSize: "0.75rem", color: "var(--stone)", marginLeft: "var(--sp-2)" }}>
-                  ডেলিভারির সময় পেমেন্ট
-                </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+                <label style={{
+                  display: "flex", alignItems: "flex-start", gap: "var(--sp-3)",
+                  padding: "var(--sp-3) var(--sp-4)", border: "1px solid var(--border)",
+                  borderRadius: "var(--radius-md)", cursor: "pointer",
+                  background: paymentMethod === "rupantor" ? "#fff7ed" : "var(--white)",
+                  borderColor: paymentMethod === "rupantor" ? "var(--terracotta)" : "var(--border)",
+                }}>
+                  <input
+                    type="radio"
+                    name="payment-method"
+                    value="rupantor"
+                    checked={paymentMethod === "rupantor"}
+                    onChange={() => setPaymentMethod("rupantor")}
+                    style={{ marginTop: "2px" }}
+                  />
+                  <div>
+                    <span style={{ fontWeight: 600 }}>অনলাইন পেমেন্ট</span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--stone)", marginLeft: "var(--sp-2)" }}>
+                      bKash, Nagad, Rocket
+                    </span>
+                  </div>
+                </label>
+                {hasPhysical && (
+                  <label style={{
+                    display: "flex", alignItems: "flex-start", gap: "var(--sp-3)",
+                    padding: "var(--sp-3) var(--sp-4)", border: "1px solid var(--border)",
+                    borderRadius: "var(--radius-md)", cursor: "pointer",
+                    background: paymentMethod === "cod" ? "#fff7ed" : "var(--white)",
+                    borderColor: paymentMethod === "cod" ? "var(--terracotta)" : "var(--border)",
+                  }}>
+                    <input
+                      type="radio"
+                      name="payment-method"
+                      value="cod"
+                      checked={paymentMethod === "cod"}
+                      onChange={() => setPaymentMethod("cod")}
+                      style={{ marginTop: "2px" }}
+                    />
+                    <div>
+                      <span style={{ fontWeight: 600 }}>ক্যাশ অন ডেলিভারি</span>
+                      <span style={{ fontSize: "0.75rem", color: "var(--stone)", marginLeft: "var(--sp-2)" }}>
+                        ডেলিভারির সময় পেমেন্ট
+                      </span>
+                    </div>
+                  </label>
+                )}
               </div>
+              {!hasPhysical && (
+                <p style={{ fontSize: "0.8125rem", color: "var(--stone)", marginTop: "var(--sp-3)" }}>
+                  ডিজিটাল বইয়ের জন্য শুধুমাত্র অনলাইন পেমেন্ট উপলব্ধ।
+                </p>
+              )}
             </div>
           </div>
 

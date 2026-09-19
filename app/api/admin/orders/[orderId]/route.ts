@@ -35,3 +35,34 @@ export async function GET(req: Request, { params }: { params: Promise<{ orderId:
     return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
   }
 }
+
+export async function PUT(req: Request, { params }: { params: Promise<{ orderId: string }> }) {
+  try {
+    await requireAdmin()
+    const { orderId } = await params
+    const body = await req.json()
+    const client = await createServerClient()
+
+    const update: Record<string, any> = {}
+    if (body.fulfillment_status !== undefined) {
+      update.fulfillment_status = body.fulfillment_status
+    }
+    if (body.payment_status !== undefined) {
+      update.payment_status = body.payment_status
+    }
+
+    const { error } = await client.database
+      .from("orders")
+      .update(update)
+      .eq("id", orderId)
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (err: any) {
+    if (err instanceof Response) return err
+    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+  }
+}

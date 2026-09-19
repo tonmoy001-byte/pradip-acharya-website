@@ -61,6 +61,7 @@ export default function AdminOrderDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
+  const [updatingFulfillment, setUpdatingFulfillment] = useState(false)
 
   useEffect(() => {
     fetch(`/api/admin/orders/${orderId}`)
@@ -101,6 +102,23 @@ export default function AdminOrderDetailPage() {
     }
   }
 
+  const handleFulfillmentChange = async (newStatus: string) => {
+    setUpdatingFulfillment(true)
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fulfillment_status: newStatus }),
+      })
+      if (!res.ok) throw new Error("আপডেট করা যায়নি")
+      setOrder((prev) => prev ? { ...prev, fulfillment_status: newStatus } : prev)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setUpdatingFulfillment(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="admin-page">
@@ -132,7 +150,7 @@ export default function AdminOrderDetailPage() {
         </div>
         <div style={{ display: "flex", gap: "var(--sp-3)" }}>
           <Link href="/admin/orders" className="btn btn-secondary">সব অর্ডার</Link>
-          {order.payment_status === "pending_payment" && (
+          {order.payment_status === "pending_verification" && (
             <>
               <button className="btn btn-primary" onClick={handleApprove} disabled={actionLoading}>অনুমোদন</button>
               <button className="btn btn-danger" onClick={handleReject} disabled={actionLoading}>প্রত্যাখ্যান</button>
@@ -154,11 +172,19 @@ export default function AdminOrderDetailPage() {
                 {PAYMENT_LABELS[order.payment_status] || order.payment_status}
               </span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ color: "var(--ink-muted)" }}>ডেলিভারি</span>
-              <span className={`admin-badge ${order.fulfillment_status === "delivered" ? "admin-badge-published" : "admin-badge-admin"}`}>
-                {FULFILLMENT_LABELS[order.fulfillment_status] || order.fulfillment_status}
-              </span>
+              <select
+                className="admin-input"
+                style={{ width: "auto", padding: "4px 8px", fontSize: "0.8125rem" }}
+                value={order.fulfillment_status}
+                disabled={updatingFulfillment}
+                onChange={(e) => handleFulfillmentChange(e.target.value)}
+              >
+                {Object.entries(FULFILLMENT_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
             </div>
             {order.payment_method && (
               <div style={{ display: "flex", justifyContent: "space-between" }}>

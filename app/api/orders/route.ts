@@ -68,6 +68,14 @@ export async function POST(req: Request) {
     let hasPhysical = false
 
     for (const cart of cartItems) {
+      // R6: Validate quantity bounds
+      if (!cart.quantity || cart.quantity < 1 || cart.quantity > 100 || !Number.isInteger(cart.quantity)) {
+        return NextResponse.json(
+          { error: `Invalid quantity for ${cart.format_name}: must be 1-100` },
+          { status: 400, headers: NO_STORE },
+        )
+      }
+
       const fmtResult = await client.database
         .from("book_formats")
         .select("id, available, price, delivery_type, format_name")
@@ -113,7 +121,28 @@ export async function POST(req: Request) {
 
     // Aggregate totals across all items
     const subtotal = resolvedItems.reduce((sum, i) => sum + i.lineTotal, 0)
-    const deliveryCharge = hasPhysical && subtotal >= 750 ? 0 : hasPhysical ? 60 : 0
+
+    // Read delivery settings from site_settings (fallback to defaults)
+    let deliveryChargeAmount = 60
+    let freeThreshold = 750
+    try {
+      const { data: dcSetting } = await client.database
+        .from("site_settings")
+        .select("value")
+        .eq("key", "delivery_charge")
+        .single()
+      if (dcSetting?.value != null) deliveryChargeAmount = Number(dcSetting.value)
+    } catch {}
+    try {
+      const { data: fdSetting } = await client.database
+        .from("site_settings")
+        .select("value")
+        .eq("key", "free_delivery_threshold")
+        .single()
+      if (fdSetting?.value != null) freeThreshold = Number(fdSetting.value)
+    } catch {}
+
+    const deliveryCharge = hasPhysical && subtotal >= freeThreshold ? 0 : hasPhysical ? deliveryChargeAmount : 0
     const total = subtotal + deliveryCharge
 
     const orderResult = await client.database

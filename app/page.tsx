@@ -9,8 +9,8 @@ export const dynamic = "force-dynamic"
 
 async function getSettings() {
   try {
-    const base = process.env.NEXT_PUBLIC_INSFORGE_URL || "https://cpd9mnqf.ap-southeast.insforge.app"
-    const key = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || ""
+    const base = process.env.NEXT_PUBLIC_INSFORGE_URL!
+    const key = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
     const res = await fetch(`${base}/rest/v1/rpc/get_site_settings`, {
       method: "POST",
       headers: { "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${key}` },

@@ -59,27 +59,13 @@ export default function Navbar() {
           </Link>
 
           {user ? (
-            <div className="navbar-user-menu" style={{ display: "flex", alignItems: "center", gap: "var(--sp-2)" }}>
-              <Link href="/account" className="navbar-icon-btn" aria-label="আমার অ্যাকাউন্ট" title="আমার অ্যাকাউন্ট">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <Link href="/account" className="navbar-icon-btn navbar-user-icon" aria-label="আমার অ্যাকাউন্ট" title="আমার অ্যাকাউন্ট">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="1">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
                   <circle cx="12" cy="7" r="4"/>
                 </svg>
+                <span className="navbar-user-dot" />
               </Link>
-              <button
-                onClick={() => signOut()}
-                className="navbar-icon-btn"
-                aria-label="লগ আউট"
-                title="লগ আউট"
-                style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", padding: "var(--sp-2)" }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-                  <polyline points="16 17 21 12 16 7"/>
-                  <line x1="21" y1="12" x2="9" y2="12"/>
-                </svg>
-              </button>
-            </div>
           ) : (
             <Link href="/login" className="navbar-icon-btn" aria-label="লগ ইন">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

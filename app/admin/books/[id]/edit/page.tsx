@@ -39,6 +39,7 @@ interface BookData {
     compare_at_price: number | null
     delivery_type: string
     available: boolean
+    storage_key: string | null
   }>
 }
 
@@ -127,6 +128,7 @@ export default function AdminBookEditPage() {
             compareAtPrice: f.compare_at_price ? String(f.compare_at_price) : "",
             delivery_type: f.delivery_type,
             available: f.available,
+            storageKey: f.storage_key || null,
           })),
         }}
       />

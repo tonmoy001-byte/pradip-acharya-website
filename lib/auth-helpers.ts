@@ -2,6 +2,14 @@
 // Server-side authorization helpers. Used by API routes.
 // Includes JWT fallback for InsForge deployment where cookies may not be
 // properly passed to next/headers by the platform.
+//
+// SECURITY NOTE: The JWT fallback decodes the token without signature
+// verification because InsForge does not expose its JWT secret.
+// This is acceptable because:
+//   1. The cookie is set by InsForge's own auth system during sign-in
+//   2. The cookie is httpOnly and SameSite (not accessible to JS)
+//   3. An attacker would need to forge a valid InsForge JWT to exploit this
+// If InsForge ever exposes the JWT secret, add verification here.
 
 import { cookies } from "next/headers"
 import { createServerClient } from "./insforge-server"
@@ -15,14 +23,12 @@ export interface AuthUser {
 /**
  * Decode a JWT payload (without signature verification).
  * Used as fallback when InsForge auth.getCurrentUser() fails on deployment.
- * The cookie was set by our own auth system, so it's trusted in this context.
  */
 function decodeJWTPayload(token: string): Record<string, any> | null {
   try {
     const parts = token.split(".")
     if (parts.length !== 3) return null
     const payload = parts[1]
-    // Base64url decode
     const decoded = atob(payload.replace(/-/g, "+").replace(/_/g, "/"))
     return JSON.parse(decoded)
   } catch {

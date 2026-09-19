@@ -8,7 +8,7 @@ export async function GET() {
     const client = await createServerClient()
 
     const [ordersRes, booksRes, postsRes, customersRes] = await Promise.all([
-      client.database.from("orders").select("id, payment_status, fulfillment_status, total"),
+      client.database.from("orders").select("id, payment_status, fulfillment_status, total, created_at"),
       client.database.from("books").select("id"),
       client.database.from("posts").select("id, title, slug, post_type, status, created_at"),
       client.database.from("profiles").select("user_id"),

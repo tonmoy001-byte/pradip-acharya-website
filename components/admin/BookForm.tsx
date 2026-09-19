@@ -11,6 +11,7 @@ interface BookFormatInput {
   compareAtPrice: string
   delivery_type: string
   available: boolean
+  storageKey?: string | null
 }
 
 interface BookFormProps {
@@ -40,7 +41,7 @@ interface BookFormProps {
 }
 
 const DEFAULT_FORMATS: BookFormatInput[] = [
-  { name: "Paperback", price: "", compareAtPrice: "", delivery_type: "physical", available: true },
+  { name: "Paperback", price: "", compareAtPrice: "", delivery_type: "physical", available: true, storageKey: null },
 ]
 
 export default function BookForm({ initial, mode }: BookFormProps) {
@@ -70,11 +71,12 @@ export default function BookForm({ initial, mode }: BookFormProps) {
     initial?.formats || DEFAULT_FORMATS
   )
   const [uploading, setUploading] = useState(false)
+  const [uploadingPdf, setUploadingPdf] = useState<Record<number, boolean>>({})
 
   const addFormat = () => {
     setFormats((prev) => [
       ...prev,
-      { name: "", price: "", compareAtPrice: "", delivery_type: "physical", available: true },
+      { name: "", price: "", compareAtPrice: "", delivery_type: "physical", available: true, storageKey: null },
     ])
   }
 
@@ -101,6 +103,41 @@ export default function BookForm({ initial, mode }: BookFormProps) {
       }
     } catch {}
     setUploading(false)
+  }
+
+  const [uploadingHover, setUploadingHover] = useState(false)
+
+  const handleCoverHoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingHover(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      fd.append("folder", "books")
+      const res = await fetch("/api/admin/books/upload", { method: "POST", body: fd })
+      const d = await res.json()
+      if (d.path) {
+        setCoverHover(d.path)
+      }
+    } catch {}
+    setUploadingHover(false)
+  }
+
+  const handleEbookUpload = async (formatIndex: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingPdf((prev) => ({ ...prev, [formatIndex]: true }))
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch("/api/admin/books/upload-pdf", { method: "POST", body: fd })
+      const d = await res.json()
+      if (d.storageKey) {
+        updateFormat(formatIndex, "storageKey", d.storageKey)
+      }
+    } catch {}
+    setUploadingPdf((prev) => ({ ...prev, [formatIndex]: false }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -153,6 +190,22 @@ export default function BookForm({ initial, mode }: BookFormProps) {
       if (!res.ok) {
         const d = await res.json()
         throw new Error(d.error || "Failed to save")
+      }
+
+      const result = await res.json()
+      const bookId = result.book_id || initial?.id
+
+      // Save digital assets for formats with storageKey
+      if (bookId) {
+        for (const fmt of formats) {
+          if (fmt.name && fmt.storageKey && fmt.delivery_type === "digital") {
+            await fetch(`/api/admin/books/${bookId}/digital-assets`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ formatName: fmt.name, storageKey: fmt.storageKey }),
+            })
+          }
+        }
       }
 
       router.push("/admin/books")
@@ -261,6 +314,31 @@ export default function BookForm({ initial, mode }: BookFormProps) {
           </div>
         </div>
 
+        {/* Cover Hover Image */}
+        <div className="admin-form-group admin-form-span-2">
+          <label className="admin-label">কভার হোভার ইমেজ (ঐচ্ছিক)</label>
+          <div style={{ display: "flex", gap: "var(--sp-4)", alignItems: "flex-start" }}>
+            {coverHover && (
+              <div style={{ position: "relative", width: 120, height: 160 }}>
+                <Image
+                  src={resolveCoverImage(coverHover)}
+                  alt="Cover Hover"
+                  fill
+                  style={{ objectFit: "cover", borderRadius: 4 }}
+                />
+              </div>
+            )}
+            <div style={{ flex: 1 }}>
+              <input type="file" accept="image/*" onChange={handleCoverHoverUpload} className="admin-input" />
+              {uploadingHover && <p style={{ color: "var(--ink-muted)", fontSize: "0.8125rem", marginTop: "var(--sp-2)" }}>আপলোড হচ্ছে...</p>}
+              <div style={{ marginTop: "var(--sp-2)" }}>
+                <label className="admin-label" style={{ fontSize: "0.8125rem" }}>অথবা URL:</label>
+                <input className="admin-input" value={coverHover} onChange={(e) => setCoverHover(e.target.value)} placeholder="/images/books/..." />
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Flags */}
         <div className="admin-form-group admin-form-span-2">
           <label className="admin-label">বৈশিষ্ট্য</label>
@@ -294,33 +372,66 @@ export default function BookForm({ initial, mode }: BookFormProps) {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
             {formats.map((fmt, i) => (
-              <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px 120px 40px", gap: "var(--sp-2)", alignItems: "end" }}>
-                <div>
-                  <label className="admin-label" style={{ fontSize: "0.75rem" }}>নাম</label>
-                  <input className="admin-input" value={fmt.name} onChange={(e) => updateFormat(i, "name", e.target.value)} placeholder="Paperback" />
+              <div key={i}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 120px 120px 120px auto 40px", gap: "var(--sp-2)", alignItems: "end" }}>
+                  <div>
+                    <label className="admin-label" style={{ fontSize: "0.75rem" }}>নাম</label>
+                    <input className="admin-input" value={fmt.name} onChange={(e) => updateFormat(i, "name", e.target.value)} placeholder="Paperback" />
+                  </div>
+                  <div>
+                    <label className="admin-label" style={{ fontSize: "0.75rem" }}>মূল্য (৳)</label>
+                    <input className="admin-input" type="number" value={fmt.price} onChange={(e) => updateFormat(i, "price", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="admin-label" style={{ fontSize: "0.75rem" }}>তুলনামূল্য (৳)</label>
+                    <input className="admin-input" type="number" value={fmt.compareAtPrice} onChange={(e) => updateFormat(i, "compareAtPrice", e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="admin-label" style={{ fontSize: "0.75rem" }}>ডেলিভারি</label>
+                    <select className="admin-select" value={fmt.delivery_type} onChange={(e) => updateFormat(i, "delivery_type", e.target.value)}>
+                      <option value="physical">ফিজিক্যাল</option>
+                      <option value="digital">ডিজিটাল</option>
+                    </select>
+                  </div>
+                  <div style={{ paddingBottom: 4 }}>
+                    <label className="admin-label" style={{ fontSize: "0.75rem" }}>সক্রিয়</label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", height: 36 }}>
+                      <input
+                        type="checkbox"
+                        checked={fmt.available}
+                        onChange={(e) => updateFormat(i, "available", e.target.checked)}
+                        style={{ width: 16, height: 16, accentColor: "var(--primary)" }}
+                      />
+                    </label>
+                  </div>
+                  <div style={{ paddingBottom: 4 }}>
+                    {formats.length > 1 && (
+                      <button type="button" className="btn btn-danger" style={{ fontSize: "0.75rem", padding: "4px 8px" }} onClick={() => removeFormat(i)}>
+                        ✕
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <label className="admin-label" style={{ fontSize: "0.75rem" }}>মূল্য (৳)</label>
-                  <input className="admin-input" type="number" value={fmt.price} onChange={(e) => updateFormat(i, "price", e.target.value)} />
-                </div>
-                <div>
-                  <label className="admin-label" style={{ fontSize: "0.75rem" }}>তুলনামূল্য (৳)</label>
-                  <input className="admin-input" type="number" value={fmt.compareAtPrice} onChange={(e) => updateFormat(i, "compareAtPrice", e.target.value)} />
-                </div>
-                <div>
-                  <label className="admin-label" style={{ fontSize: "0.75rem" }}>ডেলিভারি</label>
-                  <select className="admin-select" value={fmt.delivery_type} onChange={(e) => updateFormat(i, "delivery_type", e.target.value)}>
-                    <option value="physical">ফিজিক্যাল</option>
-                    <option value="digital">ডিজিটাল</option>
-                  </select>
-                </div>
-                <div style={{ paddingBottom: 4 }}>
-                  {formats.length > 1 && (
-                    <button type="button" className="btn btn-danger" style={{ fontSize: "0.75rem", padding: "4px 8px" }} onClick={() => removeFormat(i)}>
-                      ✕
-                    </button>
-                  )}
-                </div>
+                {fmt.delivery_type === "digital" && (
+                  <div style={{ marginTop: "var(--sp-2)", padding: "var(--sp-3)", background: "var(--bg-secondary, #f5f5f5)", borderRadius: 6 }}>
+                    <label className="admin-label" style={{ fontSize: "0.75rem", marginBottom: "var(--sp-1)", display: "block" }}>ইবুক PDF ফাইল</label>
+                    {fmt.storageKey && (
+                      <p style={{ fontSize: "0.8125rem", color: "var(--ink-muted)", marginBottom: "var(--sp-2)" }}>
+                        বর্তমান ফাইল: {fmt.storageKey.split("/").pop()}
+                      </p>
+                    )}
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={(e) => handleEbookUpload(i, e)}
+                      className="admin-input"
+                      disabled={uploadingPdf[i]}
+                    />
+                    {uploadingPdf[i] && (
+                      <p style={{ color: "var(--ink-muted)", fontSize: "0.75rem", marginTop: "var(--sp-1)" }}>আপলোড হচ্ছে...</p>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

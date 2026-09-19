@@ -1,12 +1,25 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useCart } from "@/lib/store"
 import { money, deliveryCharge } from "@/lib/format"
 
 export default function CartPage() {
   const { items, removeFromCart, updateQuantity, subtotal } = useCart()
-  const delivery = deliveryCharge(subtotal)
+  const [promoText, setPromoText] = useState("")
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        setPromoText(data.promo_banner_text || "")
+      })
+      .catch(() => {})
+  }, [])
+
+  const hasPhysical = items.some((item) => item.format === "Paperback")
+  const delivery = hasPhysical ? deliveryCharge(subtotal) : 0
   const total = subtotal + delivery
 
   if (items.length === 0) {
@@ -80,9 +93,11 @@ export default function CartPage() {
             <span>মোট</span>
             <span>{money(total)}</span>
           </div>
-          <p style={{ fontSize: "0.8125rem", color: "var(--stone)", marginTop: "var(--sp-3)" }}>
-            ৭৫০ টাকার বেশি অর্ডারে বিনামূল্যে ডেলিভারি।
-          </p>
+          {promoText && (
+            <p style={{ fontSize: "0.8125rem", color: "var(--stone)", marginTop: "var(--sp-3)" }}>
+              {promoText}
+            </p>
+          )}
           <Link href="/checkout" className="btn btn-primary" style={{ width: "100%", marginTop: "var(--sp-4)" }}>
             চেকআউটে যান
           </Link>

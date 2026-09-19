@@ -2,14 +2,16 @@ import { NextResponse } from "next/server"
 
 export async function GET() {
   try {
+    const baseUrl = process.env.NEXT_PUBLIC_INSFORGE_URL!
+    const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
     const res = await fetch(
-      `${process.env.NEXT_PUBLIC_INSFORGE_URL || "https://cpd9mnqf.ap-southeast.insforge.app"}/rest/v1/rpc/get_site_settings`,
+      `${baseUrl}/rest/v1/rpc/get_site_settings`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          apikey: process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || "",
-          Authorization: `Bearer ${process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || ""}`,
+          apikey: anonKey,
+          Authorization: `Bearer ${anonKey}`,
         },
         body: "{}",
       }

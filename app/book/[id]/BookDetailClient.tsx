@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { Book, BookFormatName } from "@/lib/data"
 import { money } from "@/lib/format"
 import { useCart } from "@/lib/store"
@@ -16,8 +16,20 @@ interface BookDetailClientProps {
 export default function BookDetailClient({ book }: BookDetailClientProps) {
   const [selectedFormat, setSelectedFormat] = useState<BookFormatName>(book.formats[0].name)
   const [quantity, setQuantity] = useState(1)
+  const [deliveryCharge, setDeliveryCharge] = useState(60)
+  const [freeThreshold, setFreeThreshold] = useState(750)
   const { addToCart } = useCart()
   const { showToast } = useToast()
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.delivery_charge !== undefined) setDeliveryCharge(Number(data.delivery_charge))
+        if (data.free_delivery_threshold !== undefined) setFreeThreshold(Number(data.free_delivery_threshold))
+      })
+      .catch(() => {})
+  }, [])
 
   const currentFormat = book.formats.find((f) => f.name === selectedFormat) || book.formats[0]
 
@@ -107,7 +119,11 @@ export default function BookDetailClient({ book }: BookDetailClientProps) {
         </div>
 
         <div className="delivery-info">
-          <p>ডেলিভারি: ৬০ টাকা। ৭৫০ টাকার বেশি অর্ডারে বিনামূল্যে ডেলিভারি।</p>
+          {selectedFormat === "Paperback" ? (
+            <p>ডেলিভারি: {money(deliveryCharge)}। {money(freeThreshold)} টাকার বেশি অর্ডারে বিনামূল্যে ডেলিভারি।</p>
+          ) : (
+            <p>ডিজিটাল ডেলিভারি — কোনো ডেলিভারি চার্জ নেই।</p>
+          )}
         </div>
       </div>
     </>
