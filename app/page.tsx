@@ -43,8 +43,6 @@ export default async function HomePage() {
   ])
 
   const heroBook = featured[0]
-  const promoText = settings.promo_banner_text || "সব বই ডিজিটাল ইবুক (PDF) আকারে। এখনই অর্ডার করুন।"
-  const footerText = settings.footer_text || ""
   const spotlightBooks = mergeFeaturedBooks(featured, newReleases, trending)
 
   return (
@@ -119,54 +117,9 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* Promo Strip */}
-      {promoText && (
-        <section className="section-padding">
-          <div className="container" style={{ textAlign: "center" }}>
-            <ScrollReveal>
-              <h2 style={{ marginBottom: "var(--sp-4)" }}>বিশেষ অফার</h2>
-              <p style={{ fontSize: "1.0625rem", marginBottom: "var(--sp-6)", maxWidth: 500, marginInline: "auto" }}>
-                {promoText}
-              </p>
-              <Link href="/books" className="btn btn-primary">সকল বই দেখুন</Link>
-            </ScrollReveal>
-          </div>
-        </section>
-      )}
-
-      {/* Newsletter */}
-      <section className="section-padding" style={{ background: "var(--ink)", color: "var(--white)" }}>
-        <div className="container" style={{ textAlign: "center" }}>
-          <ScrollReveal>
-            <h2 style={{ color: "var(--white)", marginBottom: "var(--sp-4)" }}>নতুন প্রকাশনা সম্পর্কে জানুন</h2>
-            <p style={{ color: "rgba(255,255,255,0.7)", marginBottom: "var(--sp-6)", maxWidth: 500, marginInline: "auto" }}>
-              আমাদের নতুন বই ও অফার সম্পর্কে সরাসরি জানুন।
-            </p>
-            <div style={{ display: "flex", gap: "var(--sp-3)", justifyContent: "center", maxWidth: 400, marginInline: "auto" }}>
-              <input
-                type="email"
-                placeholder="আপনার ইমেইল"
-                aria-label="ইমেইল ঠিকানা"
-                style={{
-                  flex: 1,
-                  padding: "var(--sp-3) var(--sp-4)",
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  borderRadius: "var(--radius-md)",
-                  background: "rgba(255,255,255,0.1)",
-                  color: "var(--white)",
-                  fontFamily: "var(--font-body)",
-                }}
-              />
-              <button className="btn btn-primary">সাবস্ক্রাইব</button>
-            </div>
-            {footerText && (
-              <p style={{ color: "rgba(255,255,255,0.5)", marginTop: "var(--sp-6)", fontSize: "0.8125rem" }}>
-                {footerText}
-              </p>
-            )}
-          </ScrollReveal>
-        </div>
-      </section>
+      {/* Promo strip and newsletter removed: promo_banner_text is free-form text
+          with no discount logic behind it, and the newsletter form was never
+          wired to a backend. Re-add only with a real offer / working handler. */}
     </>
   )
 }

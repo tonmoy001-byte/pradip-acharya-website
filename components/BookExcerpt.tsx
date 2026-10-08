@@ -39,8 +39,11 @@ export default function BookExcerpt({ slug, teaser }: BookExcerptProps) {
               ))}
             </blockquote>
 
+            {/* TODO(owner): provide a sample chapter file (public/samples/ or storage
+                bucket) and point this button at it. Until then the label must
+                describe the real target: the book's detail page. */}
             <Link href={`/book/${slug}`} className="btn btn-secondary book-excerpt__cta">
-              নমুনা পড়ুন
+              বিস্তারিত দেখুন
             </Link>
           </div>
         </ScrollReveal>
