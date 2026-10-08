@@ -28,6 +28,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
       `${book.title} PDF`,
       book.author,
       "বাংলা সামাজিক উপন্যাস",
+      // English transliterations so Latin-script searches can find the book.
+      "Chhera Pushpo",
+      "Chera Pushpo",
+      "ছেড়া পুষ্প",
     ],
     type: "book",
   })
