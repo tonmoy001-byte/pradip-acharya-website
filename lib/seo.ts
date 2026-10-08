@@ -67,6 +67,8 @@ export const PUBLIC_PATHS = [
   "/about",
   "/contact",
   "/privacy",
+  "/refund-policy",
+  "/terms",
   "/blog",
 ] as const
 

@@ -8,10 +8,7 @@ export default function Footer() {
         <div className="footer-grid">
           <div className="footer-about">
             <h4>প্রদীপ কুমার আচার্য্য</h4>
-            <p>
-              বাংলা সাহিত্যের একটি অনন্য কণ্ঠ। তাঁর লেখায় জীবনের গভীরতা ও
-              মানবিক অনুভূতি ফুটে ওঠে।
-            </p>
+            <p>বাংলা সামাজিক উপন্যাসের ডিজিটাল ইবুক।</p>
           </div>
           <div className="footer-links">
             <h4>বই</h4>
@@ -22,6 +19,8 @@ export default function Footer() {
             <h4>সহায়তা</h4>
             <Link href="/contact">যোগাযোগ</Link>
             <Link href="/privacy">গোপনীয়তা নীতি</Link>
+            <Link href="/refund-policy">রিফান্ড নীতি</Link>
+            <Link href="/terms">শর্তাবলি</Link>
           </div>
         </div>
         <hr className="divider" />

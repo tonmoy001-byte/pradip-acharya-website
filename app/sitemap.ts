@@ -31,6 +31,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/blog": 0.5,
     "/contact": 0.4,
     "/privacy": 0.2,
+    "/refund-policy": 0.2,
+    "/terms": 0.2,
   }
 
   const staticEntries: MetadataRoute.Sitemap = PUBLIC_PATHS.map((path) => ({
