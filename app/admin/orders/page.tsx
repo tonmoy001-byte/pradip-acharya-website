@@ -11,7 +11,7 @@ interface Stats {
   totalOrders: number
   pendingVerification: number
   totalRevenue: number
-  pendingDeliveries: number
+  pendingDownloads: number
 }
 
 const FILTERS = [
@@ -98,8 +98,8 @@ export default function AdminOrdersPage() {
             <p className="admin-stat-value">৳ {stats.totalRevenue.toLocaleString("bn-BD")}</p>
           </div>
           <div className="admin-stat-card">
-            <p className="admin-stat-label">ডেলিভারি বাকি</p>
-            <p className="admin-stat-value">{stats.pendingDeliveries}</p>
+            <p className="admin-stat-label">ডাউনলোড অনুমোদন বাকি</p>
+            <p className="admin-stat-value">{stats.pendingDownloads}</p>
           </div>
         </div>
       )}

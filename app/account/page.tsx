@@ -8,7 +8,6 @@ import { money } from "@/lib/format"
 interface Order {
   id: string
   payment_status: string
-  fulfillment_status: string
   total: number
   created_at: string
   items: Array<{
@@ -21,7 +20,7 @@ export default function AccountDashboardPage() {
   const [activeOrders, setActiveOrders] = useState(0)
   const [totalOrders, setTotalOrders] = useState(0)
   const [wishlistCount, setWishlistCount] = useState(0)
-  const [addressCount, setAddressCount] = useState(0)
+  const [downloadCount, setDownloadCount] = useState(0)
   const [recentOrder, setRecentOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -30,21 +29,17 @@ export default function AccountDashboardPage() {
 
     async function fetchDashboard() {
       try {
-        const [ordersRes, wishlistRes, addressesRes] = await Promise.allSettled([
+        const [ordersRes, wishlistRes, downloadsRes] = await Promise.allSettled([
           fetch("/api/my-orders", { credentials: "include" }),
           fetch("/api/wishlist", { credentials: "include" }),
-          fetch("/api/addresses", { credentials: "include" }),
+          fetch("/api/my-downloads", { credentials: "include" }),
         ])
 
         if (ordersRes.status === "fulfilled" && ordersRes.value.ok) {
           const { data } = await ordersRes.value.json()
           const orders: Order[] = data || []
           setTotalOrders(orders.length)
-          setActiveOrders(
-            orders.filter(
-              (o) => o.fulfillment_status !== "delivered" && o.fulfillment_status !== "returned"
-            ).length
-          )
+          setActiveOrders(orders.filter((o) => o.payment_status !== "refunded").length)
           if (orders.length > 0) {
             setRecentOrder(orders[0])
           }
@@ -55,9 +50,9 @@ export default function AccountDashboardPage() {
           setWishlistCount(Array.isArray(data) ? data.length : 0)
         }
 
-        if (addressesRes.status === "fulfilled" && addressesRes.value.ok) {
-          const { data } = await addressesRes.value.json()
-          setAddressCount(Array.isArray(data) ? data.length : 0)
+        if (downloadsRes.status === "fulfilled" && downloadsRes.value.ok) {
+          const { data } = await downloadsRes.value.json()
+          setDownloadCount(Array.isArray(data) ? data.length : 0)
         }
       } catch {
         // silently fail
@@ -112,8 +107,7 @@ export default function AccountDashboardPage() {
           <Link href="/account/orders" style={{ textDecoration: "none", color: "inherit" }}>
             <p style={{ fontSize: "0.8125rem", color: "var(--stone)", marginBottom: "var(--sp-1)" }}>
               চলমান অর্ডার
-            </p>
-            <p
+            </p>            <p
               style={{
                 fontSize: "1.75rem",
                 fontFamily: "var(--font-display)",
@@ -172,9 +166,9 @@ export default function AccountDashboardPage() {
           className="card"
           style={{ padding: "var(--sp-5)", cursor: "pointer", textDecoration: "none" }}
         >
-          <Link href="/account/addresses" style={{ textDecoration: "none", color: "inherit" }}>
+          <Link href="/my-downloads" style={{ textDecoration: "none", color: "inherit" }}>
             <p style={{ fontSize: "0.8125rem", color: "var(--stone)", marginBottom: "var(--sp-1)" }}>
-              সংরক্ষিত ঠিকানা
+              আমার ইবুক
             </p>
             <p
               style={{
@@ -184,7 +178,7 @@ export default function AccountDashboardPage() {
                 color: "var(--ink)",
               }}
             >
-              {addressCount}
+              {downloadCount}
             </p>
           </Link>
         </div>
@@ -232,13 +226,9 @@ export default function AccountDashboardPage() {
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}>
               <span
-                className={`badge ${recentOrder.fulfillment_status === "delivered" ? "badge-green" : "badge-terracotta"}`}
+                className={`badge ${recentOrder.payment_status === "paid" ? "badge-green" : "badge-terracotta"}`}
               >
-                {recentOrder.fulfillment_status === "delivered"
-                  ? "ডেলিভারি সম্পন্ন"
-                  : recentOrder.fulfillment_status === "shipped"
-                    ? "পাঠানো হয়েছে"
-                    : "অপেক্ষমান"}
+                {recentOrder.payment_status === "paid" ? "পরিশোধিত" : "পেমেন্ট বাকি"}
               </span>
               <span style={{ fontWeight: 600 }}>{money(recentOrder.total)}</span>
             </div>
@@ -304,7 +294,7 @@ export default function AccountDashboardPage() {
             পছন্দের তালিকা
           </Link>
           <Link
-            href="/account/addresses"
+            href="/my-downloads"
             className="btn btn-secondary"
             style={{
               display: "inline-flex",
@@ -313,10 +303,11 @@ export default function AccountDashboardPage() {
             }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-              <circle cx="12" cy="10" r="3" />
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
             </svg>
-            ঠিকানা
+            আমার ইবুক
           </Link>
         </div>
       </div>

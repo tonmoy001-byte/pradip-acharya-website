@@ -26,7 +26,6 @@ interface Order {
   delivery_charge: number
   total: number
   contact: { name?: string; email?: string; phone?: string }
-  shipping_address: { line1?: string; line2?: string; city?: string; district?: string; postal_code?: string } | null
   payment_method: string | null
   payment_reference: string | null
   receipt_storage_key: string | null
@@ -36,6 +35,15 @@ interface Order {
   cancelled_at: string | null
   order_items: OrderItem[]
   profile?: { display_name: string | null } | null
+  /** Download grants issued for this order's ebook lines. */
+  download_grants?: Array<{
+    id: string
+    order_item_id: string
+    max_downloads: number
+    download_count: number
+    expires_at: string
+    revoked_at: string | null
+  }>
 }
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -46,14 +54,6 @@ const PAYMENT_LABELS: Record<string, string> = {
   failed: "ব্যর্থ",
 }
 
-const FULFILLMENT_LABELS: Record<string, string> = {
-  not_applicable: "প্রযোজ্য নয়",
-  pending: "বাকি",
-  shipped: "পাঠানো হয়েছে",
-  delivered: "ডেলিভারি হয়েছে",
-  returned: "ফেরত",
-}
-
 export default function AdminOrderDetailPage() {
   const { orderId } = useParams()
   const router = useRouter()
@@ -61,7 +61,6 @@ export default function AdminOrderDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
   const [actionLoading, setActionLoading] = useState(false)
-  const [updatingFulfillment, setUpdatingFulfillment] = useState(false)
 
   useEffect(() => {
     fetch(`/api/admin/orders/${orderId}`)
@@ -99,23 +98,6 @@ export default function AdminOrderDetailPage() {
       setError(err.message)
     } finally {
       setActionLoading(false)
-    }
-  }
-
-  const handleFulfillmentChange = async (newStatus: string) => {
-    setUpdatingFulfillment(true)
-    try {
-      const res = await fetch(`/api/admin/orders/${orderId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fulfillment_status: newStatus }),
-      })
-      if (!res.ok) throw new Error("আপডেট করা যায়নি")
-      setOrder((prev) => prev ? { ...prev, fulfillment_status: newStatus } : prev)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setUpdatingFulfillment(false)
     }
   }
 
@@ -172,19 +154,9 @@ export default function AdminOrderDetailPage() {
                 {PAYMENT_LABELS[order.payment_status] || order.payment_status}
               </span>
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ color: "var(--ink-muted)" }}>ডেলিভারি</span>
-              <select
-                className="admin-input"
-                style={{ width: "auto", padding: "4px 8px", fontSize: "0.8125rem" }}
-                value={order.fulfillment_status}
-                disabled={updatingFulfillment}
-                onChange={(e) => handleFulfillmentChange(e.target.value)}
-              >
-                {Object.entries(FULFILLMENT_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "var(--ink-muted)" }}>ফুলফিলমেন্ট</span>
+              <span className="admin-badge admin-badge-published">ডিজিটাল — কোনো শিপিং নেই</span>
             </div>
             {order.payment_method && (
               <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -207,9 +179,9 @@ export default function AdminOrderDetailPage() {
           </div>
         </div>
 
-        {/* Contact & Shipping */}
+        {/* Contact */}
         <div style={{ background: "var(--white)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", padding: "var(--sp-5)" }}>
-          <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "var(--sp-4)" }}>যোগাযোগ ও শিপিং</h2>
+          <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "var(--sp-4)" }}>যোগাযোগের তথ্য</h2>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
             {order.profile?.display_name && (
               <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -235,19 +207,6 @@ export default function AdminOrderDetailPage() {
                 <span>{order.contact.email}</span>
               </div>
             )}
-            {order.shipping_address && (
-              <div style={{ marginTop: "var(--sp-2)" }}>
-                <span style={{ color: "var(--ink-muted)", fontSize: "0.8125rem" }}>ঠিকানা:</span>
-                <p style={{ marginTop: "var(--sp-1)", fontSize: "0.875rem", lineHeight: 1.6 }}>
-                  {order.shipping_address.line1}
-                  {order.shipping_address.line2 && <>, {order.shipping_address.line2}</>}
-                  <br />
-                  {order.shipping_address.city && `${order.shipping_address.city}, `}
-                  {order.shipping_address.district}
-                  {order.shipping_address.postal_code && ` - ${order.shipping_address.postal_code}`}
-                </p>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -260,26 +219,47 @@ export default function AdminOrderDetailPage() {
             <tr>
               <th>বই</th>
               <th>ফরম্যাট</th>
-              <th>ডেলিভারি</th>
               <th>পরিমাণ</th>
               <th>একক মূল্য</th>
               <th>মোট</th>
+              <th>ডাউনলোড</th>
             </tr>
           </thead>
           <tbody>
-            {order.order_items.map((item) => (
-              <tr key={item.id}>
-                <td>
-                  <div style={{ fontWeight: 500 }}>{item.title_snapshot}</div>
-                  <div style={{ fontSize: "0.8125rem", color: "var(--ink-muted)" }}>{item.author_snapshot}</div>
-                </td>
-                <td>{item.format_snapshot}</td>
-                <td>{item.delivery_type_snapshot === "digital" ? "ডিজিটাল" : "ফিজিক্যাল"}</td>
-                <td>{item.quantity}</td>
-                <td>{money(item.unit_price_snapshot)}</td>
-                <td style={{ fontWeight: 600 }}>{money(item.line_total)}</td>
-              </tr>
-            ))}
+            {order.order_items.map((item) => {
+              const grant = order.download_grants?.find(
+                (g) => g.order_item_id === item.id && !g.revoked_at,
+              )
+              return (
+                <tr key={item.id}>
+                  <td>
+                    <div style={{ fontWeight: 500 }}>{item.title_snapshot}</div>
+                    <div style={{ fontSize: "0.8125rem", color: "var(--ink-muted)" }}>{item.author_snapshot}</div>
+                  </td>
+                  <td>ডিজিটাল ইবুক (PDF)</td>
+                  <td>{item.quantity}</td>
+                  <td>{money(item.unit_price_snapshot)}</td>
+                  <td style={{ fontWeight: 600 }}>{money(item.line_total)}</td>
+                  <td>
+                    {item.delivery_type_snapshot === "digital" ? (
+                      grant ? (
+                        <span className="admin-badge admin-badge-published" style={{ fontSize: "0.6875rem" }}>
+                          অনুমোদিত · {grant.download_count}/{grant.max_downloads}
+                        </span>
+                      ) : (
+                        <span className="admin-badge admin-badge-draft" style={{ fontSize: "0.6875rem" }}>
+                          অনুমোদন বাকি
+                        </span>
+                      )
+                    ) : (
+                      <span className="admin-badge admin-badge-draft" style={{ fontSize: "0.6875rem" }}>
+                        পুরনো ফিজিক্যাল অর্ডার
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
 
@@ -288,10 +268,6 @@ export default function AdminOrderDetailPage() {
           <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--sp-2)" }}>
             <span style={{ color: "var(--ink-muted)" }}>সাবটোটাল</span>
             <span>{money(order.subtotal)}</span>
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "var(--sp-2)" }}>
-            <span style={{ color: "var(--ink-muted)" }}>ডেলিভারি</span>
-            <span>{order.delivery_charge === 0 ? "বিনামূল্যে" : money(order.delivery_charge)}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "1.125rem", borderTop: "2px solid var(--border)", paddingTop: "var(--sp-3)", marginTop: "var(--sp-3)" }}>
             <span>মোট</span>

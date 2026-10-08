@@ -15,11 +15,13 @@ import {
   resendVerification as serverResendVerification,
   sendResetPasswordEmail as serverSendResetPasswordEmail,
 } from "@/app/actions/auth"
+import { parseProfileResponse } from "./profile-response"
 
 export interface AuthUser {
   id: string
   email: string
   name?: string | null
+  isAdmin?: boolean
 }
 
 export interface AuthContextType {
@@ -41,13 +43,7 @@ async function fetchProfile(): Promise<AuthUser | null> {
     const res = await fetch("/api/profile", { credentials: "include" })
     if (!res.ok) return null
     const json = await res.json()
-    if (json.data) {
-      const email = json.data.email || ""
-      const fullName = json.data.full_name || null
-      const name = fullName || email.split("@")[0] || null
-      return { id: json.data.user_id, email, name }
-    }
-    return null
+    return parseProfileResponse(json)
   } catch {
     return null
   }
@@ -62,7 +58,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async function checkSession() {
       try {
         const profile = await fetchProfile()
-        if (profile) setUser(profile)
+        if (profile) {
+          setUser(profile)
+        }
       } catch {
         // Not logged in
       } finally {
@@ -77,7 +75,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (result.error) return { error: result.error }
     // After server action sets cookies, fetch profile
     const profile = await fetchProfile()
-    if (profile) setUser(profile)
+    if (profile) {
+      setUser(profile)
+    }
     return {}
   }, [])
 
@@ -92,7 +92,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     // After server action sets cookies, fetch profile
     const profile = await fetchProfile()
-    if (profile) setUser(profile)
+    if (profile) {
+      setUser(profile)
+    }
     return { message: result.message }
   }, [])
 
@@ -101,7 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (result.error) return { error: result.error }
     // After server action sets cookies, fetch profile
     const profile = await fetchProfile()
-    if (profile) setUser(profile)
+    if (profile) {
+      setUser(profile)
+    }
     return { success: true }
   }, [])
 
@@ -120,7 +124,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshProfile = useCallback(async () => {
     const profile = await fetchProfile()
-    if (profile) setUser(profile)
+    if (profile) {
+      setUser(profile)
+    }
   }, [])
 
   return (

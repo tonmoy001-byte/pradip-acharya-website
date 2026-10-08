@@ -13,15 +13,27 @@ export async function GET(req: Request) {
     const user = await requireUser()
     const client = await createServerClient()
 
-    const { data, error } = await client.database.rpc("get_user_profile", {
-      p_user_id: user.id,
-    })
+    // Profile + admin flag in one request, RPCs run in parallel.
+    const [profileResult, adminResult] = await Promise.all([
+      client.database.rpc("get_user_profile", { p_user_id: user.id }),
+      client.database.rpc("is_admin", { uid: user.id }),
+    ])
+
+    const { data, error } = profileResult
 
     if (error) {
       return NextResponse.json(
         { error: error.message || "Failed to fetch profile" },
         { status: 500, headers: { "Cache-Control": "no-store" } }
       )
+    }
+
+    // Admin check is non-fatal: a failure degrades to customer view, never 500s.
+    let isAdmin = false
+    if (adminResult.error) {
+      console.error("[profile] is_admin check failed; defaulting to customer role", adminResult.error)
+    } else {
+      isAdmin = adminResult.data === true
     }
 
     // Merge: profile data + auth user info as fallback
@@ -33,6 +45,7 @@ export async function GET(req: Request) {
       user_id: row.user_id || user.id,
       email: row.email || profileData.email || user.email || "",
       full_name: row.display_name || row.full_name || profileData.full_name || null,
+      is_admin: isAdmin,
     }
 
     return NextResponse.json({ data: result }, { headers: { "Cache-Control": "no-store" } })

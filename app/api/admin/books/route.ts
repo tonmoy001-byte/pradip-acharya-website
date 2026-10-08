@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
 import { sanitizePostgREST } from "@/lib/sanitize"
+import { invalidateBooks } from "@/lib/public-cache"
+import { EBOOK_DELIVERY_TYPE, BOOK_CATEGORY, BOOK_CATEGORY_LABEL } from "@/lib/data"
 
 export async function GET(req: Request) {
   try {
@@ -43,12 +45,35 @@ export async function POST(req: Request) {
     const body = await req.json()
     const client = await createServerClient()
 
+    // Ebook-only store: exactly one digital format may be created, and the
+    // delivery type is forced server-side so a physical format can never be
+    // introduced through the admin API.
+    const submitted = Array.isArray(body.formats) ? body.formats : []
+    const formats = submitted
+      .filter((f: any) => f?.name)
+      .map((f: any) => ({
+        name: f.name,
+        price: Number(f.price) || 0,
+        compareAtPrice: f.compareAtPrice ?? null,
+        delivery_type: EBOOK_DELIVERY_TYPE,
+        available: f.available !== false,
+      }))
+
+    if (formats.length !== 1) {
+      return NextResponse.json(
+        { error: "একটি ইবুক ফরম্যাট (ডিজিটাল) আবশ্যক" },
+        { status: 400 },
+      )
+    }
+
     const { data, error } = await client.database.rpc("admin_create_book", {
       p_title: body.title,
       p_author: body.author,
-      p_category: body.category,
-      p_subcategory: body.subcategory,
-      p_subcategory_slug: body.subcategory_slug,
+      // Single-category store: taxonomy is fixed server-side, never taken
+      // from the request, so no client can introduce another category value.
+      p_category: BOOK_CATEGORY,
+      p_subcategory: BOOK_CATEGORY_LABEL,
+      p_subcategory_slug: BOOK_CATEGORY,
       p_description: body.description || "",
       p_synopsis: body.synopsis || null,
       p_cover_primary: body.cover_primary || null,
@@ -57,7 +82,7 @@ export async function POST(req: Request) {
       p_is_new: body.is_new || false,
       p_trending: body.trending || false,
       p_is_demo: body.is_demo || false,
-      p_formats: body.formats || [],
+      p_formats: formats,
     })
 
     if (error) {
@@ -81,6 +106,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: updateErr.message }, { status: 500 })
     }
 
+    invalidateBooks(bookId)
     return NextResponse.json({ book_id: bookId })
   } catch (err: any) {
     if (err instanceof Response) return err

@@ -1,4 +1,5 @@
 import Link from "next/link"
+import PaymentBadges from "./PaymentBadges"
 
 export default function Footer() {
   return (
@@ -24,6 +25,7 @@ export default function Footer() {
           </div>
         </div>
         <hr className="divider" />
+        <PaymentBadges />
         <p className="footer-copy">
           &copy; {new Date().getFullYear()} প্রদীপ কুমার আচার্য্য। সর্বস্বত্ব
           সংরক্ষিত।

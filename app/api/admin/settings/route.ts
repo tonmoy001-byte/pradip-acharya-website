@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { invalidateSettings } from "@/lib/public-cache"
 
 export async function GET() {
   try {
@@ -33,7 +34,7 @@ export async function PUT(req: Request) {
       const setting = entry as { value: any; category: string }
       const { error } = await client.database.rpc("admin_upsert_setting", {
         p_key: key,
-        p_value: JSON.stringify(setting.value),
+        p_value: setting.value,
         p_category: setting.category || "general",
       })
       if (error) {
@@ -41,6 +42,7 @@ export async function PUT(req: Request) {
       }
     }
 
+    invalidateSettings()
     return NextResponse.json({ success: true })
   } catch (err: any) {
     if (err instanceof Response) return err

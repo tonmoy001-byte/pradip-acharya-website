@@ -1,62 +1,52 @@
 import { notFound } from "next/navigation"
-import { getBookById, getRelated } from "@/lib/api"
-import { money } from "@/lib/format"
+import { getCachedBookById, getCachedRelated } from "@/lib/public-cache"
+import { pageMetadata } from "@/lib/seo"
+import { bookGraph } from "@/lib/structured-data"
+import { possessive } from "@/lib/format"
+import JsonLd from "@/components/JsonLd"
 import BookDetailClient from "./BookDetailClient"
 import BookGrid from "@/components/BookGrid"
 
-export const dynamic = "force-dynamic"
+const PAGE_DESCRIPTION =
+  "“ছেঁড়া পুষ্প” প্রদীপ কুমার আচার্য্যের একটি সামাজিক বাংলা উপন্যাস। কাহিনি, লেখক পরিচিতি, ইবুকের তথ্য এবং ৳৫০ মূল্যে সংগ্রহের পদ্ধতি দেখুন।"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const book = await getBookById(id)
-  if (!book) return { title: "বই পাওয়া যায়নি" }
-  return {
-    title: `${book.title} | ${book.author}`,
-    description: book.description,
-    openGraph: {
-      title: `${book.title} — ${book.author}`,
-      description: book.description,
-      siteName: "প্রদীপ কুমার আচার্য্য",
-      locale: "bn_BD",
-      type: "website",
-    },
-  }
+  const book = await getCachedBookById(id)
+  if (!book) notFound()
+
+  return pageMetadata({
+    title: `${book.title} — ${possessive(book.author)} বাংলা উপন্যাস`,
+    description: PAGE_DESCRIPTION,
+    path: `/book/${book.id}`,
+    image: book.images.primary,
+    imageAlt: `${book.title} বাংলা উপন্যাসের প্রচ্ছদ`,
+    keywords: [
+      book.title,
+      `${book.title} উপন্যাস`,
+      `${book.title} ইবুক`,
+      `${book.title} PDF`,
+      book.author,
+      "বাংলা সামাজিক উপন্যাস",
+    ],
+    type: "book",
+  })
 }
 
 export default async function BookDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const book = await getBookById(id)
+  const book = await getCachedBookById(id)
 
   if (!book) {
     notFound()
   }
 
-  const related = await getRelated(id)
+  const related = await getCachedRelated(id)
   const relatedFiltered = related.filter((b) => b.id !== book.id).slice(0, 4)
 
   return (
     <div className="container section-padding">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "Product",
-            name: book.title,
-            description: book.description,
-            author: { "@type": "Person", name: book.author },
-            image: book.images.primary,
-            offers: book.formats.map((f) => ({
-              "@type": "Offer",
-              price: f.price,
-              priceCurrency: "BDT",
-              availability: f.available
-                ? "https://schema.org/InStock"
-                : "https://schema.org/OutOfStock",
-            })),
-          }),
-        }}
-      />
+      <JsonLd data={bookGraph(book)} />
 
       <div className="book-detail">
         <BookDetailClient book={book} />

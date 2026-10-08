@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { EBOOK_DELIVERY_TYPE } from "@/lib/data"
 
 export async function GET() {
   try {
@@ -20,9 +21,30 @@ export async function GET() {
     const totalRevenue = orders
       .filter((o: any) => o.payment_status === "paid")
       .reduce((sum: number, o: any) => sum + Number(o.total), 0)
-    const pendingDeliveries = orders.filter(
-      (o: any) => o.payment_status === "paid" && o.fulfillment_status !== "delivered"
-    ).length
+
+    // Digital-only: "pending" work means paid ebook lines without a download grant.
+    const paidOrderIds = orders
+      .filter((o: any) => o.payment_status === "paid")
+      .map((o: any) => o.id)
+
+    let pendingDownloads = 0
+    if (paidOrderIds.length > 0) {
+      const { data: digitalItems } = await client.database
+        .from("order_items")
+        .select("id")
+        .eq("delivery_type_snapshot", EBOOK_DELIVERY_TYPE)
+        .in("order_id", paidOrderIds)
+
+      const digitalItemIds = (digitalItems || []).map((i: any) => i.id)
+      if (digitalItemIds.length > 0) {
+        const { data: grants } = await client.database
+          .from("download_grants")
+          .select("order_item_id")
+          .in("order_item_id", digitalItemIds)
+        const granted = new Set((grants || []).map((g: any) => g.order_item_id))
+        pendingDownloads = digitalItemIds.filter((id) => !granted.has(id)).length
+      }
+    }
 
     const totalBooks = (booksRes.data || []).length
     const posts = postsRes.data || []
@@ -41,7 +63,7 @@ export async function GET() {
       totalOrders,
       paidOrders,
       totalRevenue,
-      pendingDeliveries,
+      pendingDownloads,
       totalBooks,
       totalPosts,
       totalCustomers,

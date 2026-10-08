@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useAuth } from "@/lib/auth"
 import Link from "next/link"
+import SeoNoindex from "@/components/SeoNoindex"
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
@@ -33,6 +34,7 @@ export default function ForgotPasswordPage() {
 
   return (
     <div className="container section-padding" style={{ maxWidth: 480, marginInline: "auto" }}>
+      <SeoNoindex />
       <div className="page-header">
         <h1>পাসওয়ার্ড রিসেট করুন</h1>
         <p>আপনার ইমেইল ঠিকানা প্রবেশ করুন। আমরা আপনাকে একটি রিসেট লিংক পাঠাবো।</p>

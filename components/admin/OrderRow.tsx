@@ -10,12 +10,10 @@ import RejectModal from "./RejectModal"
 export interface AdminOrder {
   id: string
   payment_status: string
-  fulfillment_status: string
   total: number
   contact: { name?: string; email?: string; phone?: string }
   payment_method?: string | null
   payment_reference?: string | null
-  shipping_address?: { city?: string; district?: string } | null
   created_at: string
 }
 

@@ -1,43 +1,28 @@
 import Link from "next/link"
 import { notFound } from "next/navigation"
 import type { Metadata } from "next"
-
-export const dynamic = "force-dynamic"
-
-async function getPost(slug: string) {
-  try {
-    const base = process.env.NEXT_PUBLIC_INSFORGE_URL!
-    const key = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
-    const res = await fetch(
-      `${base}/rest/v1/posts?slug=eq.${slug}&status=eq.published&select=*`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}` } }
-    )
-    if (!res.ok) return null
-    const posts = await res.json()
-    return posts[0] || null
-  } catch {
-    return null
-  }
-}
+import { getCachedPostBySlug } from "@/lib/public-cache"
+import { pageMetadata } from "@/lib/seo"
+import { articleGraph } from "@/lib/structured-data"
+import JsonLd from "@/components/JsonLd"
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
-  const post = await getPost(slug)
+  const post = await getCachedPostBySlug(slug)
   if (!post) return { title: "পোস্ট পাওয়া যায়নি" }
-  return {
-    title: `${post.title} — প্রদীপ কুমার আচার্য্য`,
+  // pageMetadata supplies the self-referencing canonical and absolute
+  // og:image this page was previously missing entirely.
+  return pageMetadata({
+    title: post.title,
     description: post.meta_description || post.excerpt || post.title,
-    openGraph: {
-      title: post.title,
-      description: post.excerpt || post.title,
-      type: "article",
-    },
-  }
+    path: `/blog/${slug}`,
+    type: "article",
+  })
 }
 
 export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const post = await getPost(slug)
+  const post = await getCachedPostBySlug(slug)
 
   if (!post) {
     notFound()
@@ -45,6 +30,15 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
 
   return (
     <main style={{ minHeight: "100vh", paddingTop: "var(--sp-16)" }}>
+      <JsonLd
+        data={articleGraph({
+          title: post.title,
+          slug,
+          excerpt: post.excerpt || post.meta_description || undefined,
+          publishedAt: post.published_at || undefined,
+          authorName: post.author_name || undefined,
+        })}
+      />
       <article className="container" style={{ maxWidth: 720, margin: "0 auto" }}>
         <Link
           href="/blog"

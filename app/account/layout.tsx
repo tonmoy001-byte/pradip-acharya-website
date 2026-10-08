@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth"
+import SeoNoindex from "@/components/SeoNoindex"
 
 const menuItems = [
   {
@@ -43,13 +44,14 @@ const menuItems = [
     ),
   },
   {
-    label: "সংরক্ষিত ঠিকানা",
-    href: "/account/addresses",
-    countKey: "addresses" as const,
+    label: "আমার ইবুক",
+    href: "/my-downloads",
+    countKey: "downloads" as const,
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-        <circle cx="12" cy="10" r="3" />
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
       </svg>
     ),
   },
@@ -75,7 +77,7 @@ const menuItems = [
   },
 ]
 
-type CountKey = "orders" | "addresses" | "wishlist"
+type CountKey = "orders" | "downloads" | "wishlist"
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, signOut } = useAuth()
@@ -83,7 +85,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   const router = useRouter()
   const [counts, setCounts] = useState<Record<CountKey, number>>({
     orders: 0,
-    addresses: 0,
+    downloads: 0,
     wishlist: 0,
   })
 
@@ -93,7 +95,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
     async function fetchCounts() {
       const endpoints: [CountKey, string][] = [
         ["orders", "/api/my-orders"],
-        ["addresses", "/api/addresses"],
+        ["downloads", "/api/my-downloads"],
         ["wishlist", "/api/wishlist"],
       ]
 
@@ -106,7 +108,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
         })
       )
 
-      const newCounts: Record<CountKey, number> = { orders: 0, addresses: 0, wishlist: 0 }
+      const newCounts: Record<CountKey, number> = { orders: 0, downloads: 0, wishlist: 0 }
       for (const r of results) {
         if (r.status === "fulfilled") {
           const [key, count] = r.value
@@ -155,7 +157,9 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   if (!user) return null
 
   return (
-    <div className="container section-padding">
+    <>
+      <SeoNoindex />
+      <div className="container section-padding">
       <div className="account-layout">
         <aside className="account-sidebar">
           {menuItems.map((item) => {
@@ -202,5 +206,6 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
         <main className="account-content">{children}</main>
       </div>
     </div>
+    </>
   )
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { useRouter, useParams } from "next/navigation"
+import { useParams } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import { money } from "@/lib/format"
 
@@ -12,15 +12,24 @@ interface OrderItem {
   author_snapshot: string
   format_snapshot: string
   cover_image_snapshot: string | null
+  delivery_type_snapshot?: string
   quantity: number
   unit_price_snapshot: number
   line_total: number
 }
 
+interface DownloadGrant {
+  id: string
+  order_item_id: string
+  max_downloads: number
+  download_count: number
+  expires_at: string
+  revoked_at: string | null
+}
+
 interface Order {
   id: string
   payment_status: string
-  fulfillment_status: string
   subtotal: number
   delivery_charge: number
   total: number
@@ -31,42 +40,28 @@ interface Order {
     name?: string
     email?: string
     phone?: string
-    address?: string
-    city?: string
-    zone?: string
   }
   payment_method: string | null
   payment_reference: string | null
   items: OrderItem[]
+  download_grants?: DownloadGrant[]
 }
 
+// Digital purchase lifecycle — no shipping steps.
 const TIMELINE_STEPS = [
   { key: "placed", label: "অর্ডার গৃহীত" },
-  { key: "confirmed", label: "নিশ্চিত" },
-  { key: "processing", label: "প্রক্রিয়াকরণ" },
-  { key: "shipped", label: "পাঠানো হয়েছে" },
-  { key: "delivered", label: "ডেলিভারি সম্পন্ন" },
+  { key: "paid", label: "পেমেন্ট যাচাই" },
+  { key: "approved", label: "ডাউনলোড অনুমোদন" },
+  { key: "available", label: "ডাউনলোড উপলব্ধ" },
 ]
 
 function paymentLabel(s: string) {
   const map: Record<string, string> = {
-    pending_payment: "অপেক্ষমান",
+    pending_payment: "পেমেন্ট বাকি",
     pending_verification: "যাচাইকরণ অপেক্ষমান",
     payment_review: "পর্যালোচনাধীন",
     paid: "পরিশোধিত",
     refunded: "ফেরত দেওয়া হয়েছে",
-  }
-  return map[s] || s
-}
-
-function fulfillmentLabel(s: string) {
-  const map: Record<string, string> = {
-    not_applicable: "প্রযোজ্য নয়",
-    pending: "অপেক্ষমান",
-    processing: "প্রক্রিয়াকরণ",
-    shipped: "পাঠানো হয়েছে",
-    delivered: "ডেলিভারি সম্পন্ন",
-    returned: "ফেরত",
   }
   return map[s] || s
 }
@@ -77,32 +72,26 @@ function paymentBadgeStyle(status: string): React.CSSProperties {
   return { background: "rgba(107, 114, 128, 0.08)", color: "#374151" }
 }
 
-function fulfillmentBadgeStyle(status: string): React.CSSProperties {
-  if (status === "delivered") return { background: "rgba(74, 103, 65, 0.1)", color: "var(--green)" }
-  if (status === "shipped") return { background: "rgba(59, 130, 246, 0.1)", color: "#1d4ed8" }
-  return { background: "rgba(107, 114, 128, 0.08)", color: "#374151" }
-}
-
-function getTimelineIndex(status: string): number {
-  const map: Record<string, number> = {
-    pending: 0,
-    placed: 0,
-    confirmed: 1,
-    processing: 2,
-    shipped: 3,
-    delivered: 4,
-  }
-  return map[status] ?? 0
+function getTimelineIndex(order: Order): number {
+  if (order.payment_status !== "paid") return 0
+  const grants = order.download_grants || []
+  if (grants.length === 0) return 1
+  const active = grants.filter((g) => !g.revoked_at)
+  if (active.length === 0) return 1
+  const usable = active.some(
+    (g) => new Date(g.expires_at) > new Date() && g.download_count < g.max_downloads,
+  )
+  return usable ? 3 : 2
 }
 
 function paymentMethodLabel(method: string | null) {
   if (!method) return "নির্ধারিত হয়নি"
   const map: Record<string, string> = {
+    rupantor: "অনলাইন পেমেন্ট (bKash/Nagad/Rocket)",
     nagad: "নগদ",
     rocket: "রকেট",
     card: "কার্ড",
     bank: "ব্যাংক ট্রান্সফার",
-    cod: "ক্যাশ অন ডেলিভারি",
     manual: "ম্যানুয়াল",
   }
   return map[method] || method
@@ -110,7 +99,6 @@ function paymentMethodLabel(method: string | null) {
 
 export default function OrderDetailPage() {
   const { user, loading: authLoading } = useAuth()
-  const router = useRouter()
   const params = useParams()
   const orderId = params.id as string
 
@@ -163,28 +151,7 @@ export default function OrderDetailPage() {
         <div className="page-header">
           <h1>অর্ডার বিবরণ</h1>
         </div>
-        <div
-          className="card"
-          style={{
-            padding: "var(--sp-8)",
-            textAlign: "center",
-          }}
-        >
-          <svg
-            width="48"
-            height="48"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--stone)"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ marginBottom: "var(--sp-4)", opacity: 0.5 }}
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
+        <div className="card" style={{ padding: "var(--sp-8)", textAlign: "center" }}>
           <p style={{ color: "var(--ink-muted)", marginBottom: "var(--sp-4)" }}>
             {error || "অর্ডার পাওয়া যায়নি"}
           </p>
@@ -196,10 +163,12 @@ export default function OrderDetailPage() {
     )
   }
 
-  const timelineIdx = getTimelineIndex(order.fulfillment_status)
-  const hasPhysicalItems = order.items?.some(
-    (item) => item.format_snapshot !== "ই-বুক" && item.format_snapshot !== "e-book"
+  const timelineIdx = getTimelineIndex(order)
+  const grants = (order.download_grants || []).filter((g) => !g.revoked_at)
+  const hasDownload = grants.some(
+    (g) => new Date(g.expires_at) > new Date() && g.download_count < g.max_downloads,
   )
+  const isPaid = order.payment_status === "paid"
 
   return (
     <div>
@@ -240,8 +209,15 @@ export default function OrderDetailPage() {
             <span className="badge" style={paymentBadgeStyle(order.payment_status)}>
               {paymentLabel(order.payment_status)}
             </span>
-            <span className="badge" style={fulfillmentBadgeStyle(order.fulfillment_status)}>
-              {fulfillmentLabel(order.fulfillment_status)}
+            <span
+              className="badge"
+              style={
+                hasDownload
+                  ? { background: "rgba(74, 103, 65, 0.1)", color: "var(--green)" }
+                  : { background: "rgba(202, 138, 4, 0.1)", color: "#92400e" }
+              }
+            >
+              {hasDownload ? "ডাউনলোড উপলব্ধ" : "অনুমোদনের অপেক্ষায়"}
             </span>
           </div>
         </div>
@@ -257,7 +233,7 @@ export default function OrderDetailPage() {
             marginBottom: "var(--sp-5)",
           }}
         >
-          অর্ডার ট্র্যাকিং
+          ডাউনলোড অবস্থা
         </h2>
         <div style={{ display: "flex", alignItems: "center", gap: 0, overflowX: "auto", paddingBottom: "var(--sp-2)" }}>
           {TIMELINE_STEPS.map((step, idx) => {
@@ -326,6 +302,24 @@ export default function OrderDetailPage() {
             )
           })}
         </div>
+
+        {!isPaid && (
+          <p style={{ marginTop: "var(--sp-4)", fontSize: "0.8125rem", color: "#92400e" }}>
+            পেমেন্ট সম্পন্ন হলে ডাউনলোড অনুরোধটি যাচাই করা হবে।
+          </p>
+        )}
+        {isPaid && !hasDownload && (
+          <p style={{ marginTop: "var(--sp-4)", fontSize: "0.8125rem", color: "#92400e" }}>
+            আপনার ডাউনলোড অনুরোধটি অ্যাডমিন অনুমোদনের অপেক্ষায় আছে। অনুমোদনের পর এখানে ডাউনলোড লিংক দেখা যাবে।
+          </p>
+        )}
+        {hasDownload && (
+          <div style={{ marginTop: "var(--sp-4)" }}>
+            <Link href="/my-downloads" className="btn btn-primary">
+              ইবুক ডাউনলোড করুন
+            </Link>
+          </div>
+        )}
       </div>
 
       {/* Products */}
@@ -384,7 +378,7 @@ export default function OrderDetailPage() {
                 </p>
                 <div style={{ display: "flex", gap: "var(--sp-4)", flexWrap: "wrap", fontSize: "0.8125rem" }}>
                   <span style={{ color: "var(--ink-muted)" }}>
-                    ফরম্যাট: <strong>{item.format_snapshot}</strong>
+                    ফরম্যাট: <strong>ডিজিটাল ইবুক (PDF)</strong>
                   </span>
                   <span style={{ color: "var(--ink-muted)" }}>
                     পরিমাণ: <strong>{item.quantity}</strong>
@@ -419,10 +413,6 @@ export default function OrderDetailPage() {
             <span style={{ color: "var(--ink-muted)" }}>সাবটোটাল</span>
             <span>{money(order.subtotal)}</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9375rem" }}>
-            <span style={{ color: "var(--ink-muted)" }}>ডেলিভারি চার্জ</span>
-            <span>{order.delivery_charge === 0 ? "বিনামূল্যে" : money(order.delivery_charge)}</span>
-          </div>
           <div
             style={{
               display: "flex",
@@ -440,43 +430,39 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Delivery Information */}
-      {hasPhysicalItems && order.contact && (
-        <div className="card" style={{ padding: "var(--sp-6)", marginBottom: "var(--sp-6)" }}>
-          <h2
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: "1.125rem",
-              fontWeight: "var(--font-weight-bold)",
-              marginBottom: "var(--sp-4)",
-            }}
-          >
-            ডেলিভারি তথ্য
-          </h2>
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-            {order.contact.name && (
-              <div>
-                <p style={{ fontSize: "0.75rem", color: "var(--stone)", marginBottom: "var(--sp-1)" }}>প্রাপকের নাম</p>
-                <p style={{ fontSize: "0.9375rem", fontWeight: 500 }}>{order.contact.name}</p>
-              </div>
-            )}
-            {order.contact.phone && (
-              <div>
-                <p style={{ fontSize: "0.75rem", color: "var(--stone)", marginBottom: "var(--sp-1)" }}>ফোন নম্বর</p>
-                <p style={{ fontSize: "0.9375rem", fontWeight: 500 }}>{order.contact.phone}</p>
-              </div>
-            )}
-            {(order.contact.address || order.contact.city || order.contact.zone) && (
-              <div>
-                <p style={{ fontSize: "0.75rem", color: "var(--stone)", marginBottom: "var(--sp-1)" }}>ঠিকানা</p>
-                <p style={{ fontSize: "0.9375rem", fontWeight: 500 }}>
-                  {[order.contact.address, order.contact.zone, order.contact.city].filter(Boolean).join(", ")}
-                </p>
-              </div>
-            )}
-          </div>
+      {/* Contact Information */}
+      <div className="card" style={{ padding: "var(--sp-6)", marginBottom: "var(--sp-6)" }}>
+        <h2
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "1.125rem",
+            fontWeight: "var(--font-weight-bold)",
+            marginBottom: "var(--sp-4)",
+          }}
+        >
+          যোগাযোগের তথ্য
+        </h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+          {order.contact?.name && (
+            <div>
+              <p style={{ fontSize: "0.75rem", color: "var(--stone)", marginBottom: "var(--sp-1)" }}>নাম</p>
+              <p style={{ fontSize: "0.9375rem", fontWeight: 500 }}>{order.contact.name}</p>
+            </div>
+          )}
+          {order.contact?.email && (
+            <div>
+              <p style={{ fontSize: "0.75rem", color: "var(--stone)", marginBottom: "var(--sp-1)" }}>ইমেইল</p>
+              <p style={{ fontSize: "0.9375rem", fontWeight: 500 }}>{order.contact.email}</p>
+            </div>
+          )}
+          {order.contact?.phone && (
+            <div>
+              <p style={{ fontSize: "0.75rem", color: "var(--stone)", marginBottom: "var(--sp-1)" }}>ফোন নম্বর</p>
+              <p style={{ fontSize: "0.9375rem", fontWeight: 500 }}>{order.contact.phone}</p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Payment Information */}
       <div className="card" style={{ padding: "var(--sp-6)" }}>

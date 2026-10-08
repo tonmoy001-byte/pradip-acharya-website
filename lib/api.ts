@@ -4,7 +4,14 @@
 // Uses basic client (no auth cookies) since book data is public.
 
 import { createClient } from "@insforge/sdk"
-import type { Book, BookCategory, BookFormat } from "./data"
+import {
+  BOOK_CATEGORY,
+  BOOK_CATEGORY_LABEL,
+  EBOOK_FORMAT_NAME,
+  type Book,
+  type BookCategory,
+  type BookFormat,
+} from "./data"
 
 const INSFORGE_URL = process.env.NEXT_PUBLIC_INSFORGE_URL!
 const INSFORGE_ANON_KEY = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
@@ -49,23 +56,59 @@ export function resolveCoverImage(value: string | null | undefined): string {
   return `${INSFORGE_URL}/api/storage/buckets/book-covers/objects/${trimmed}`
 }
 
+/**
+ * Resolves an OPTIONAL secondary cover (the hover image) into a URL.
+ *
+ * Unlike {@link resolveCoverImage} this returns `undefined` instead of a
+ * fallback path when the value is missing. A missing hover image must stay
+ * missing: substituting the placeholder here would stack a second image on top
+ * of the real cover, which is exactly the duplicate-image bug this guards
+ * against.
+ */
+export function resolveHoverImage(value: string | null | undefined): string | undefined {
+  if (!value || typeof value !== "string" || !value.trim()) return undefined
+  return resolveCoverImage(value)
+}
+
+/**
+ * Resolve the single sellable ebook format from a book's `book_formats` rows.
+ *
+ * The store is ebook-only: only `delivery_type = 'digital'` rows are ever
+ * exposed. Physical (paperbook) rows that still exist in the database are
+ * ignored entirely — they can never be shown or bought. A book that has no
+ * digital format is reported as an unavailable ebook so the storefront cannot
+ * offer a product that cannot be delivered.
+ */
+function resolveEbookFormat(rows: any): BookFormat {
+  const digital = ((rows || []) as any[]).filter(
+    (f) => String(f?.delivery_type).toLowerCase() === "digital",
+  )
+  const chosen = digital[0]
+
+  if (!chosen) {
+    return { name: EBOOK_FORMAT_NAME, price: 0, available: false }
+  }
+
+  return {
+    name: EBOOK_FORMAT_NAME,
+    price: Number(chosen.price) || 0,
+    compareAtPrice: chosen.compare_at_price || undefined,
+    available: chosen.available === true,
+  }
+}
+
 function mapRowToBook(row: any): Book {
-  const formats = (row.book_formats || []) as any[]
   return {
     id: row.id,
     title: row.title,
     author: row.author,
-    category: row.category as BookCategory,
-    subcategory: row.subcategory,
-    subcategorySlug: row.subcategory_slug,
+    // Single-category store: the raw taxonomy columns are not user-facing.
+    // `categoryLabel` is always the Bengali label so no English key can leak.
+    category: BOOK_CATEGORY,
+    categoryLabel: BOOK_CATEGORY_LABEL,
     description: row.description,
     synopsis: row.synopsis || undefined,
-    formats: formats.map((f) => ({
-      name: f.format_name as BookFormat["name"],
-      price: f.price,
-      compareAtPrice: f.compare_at_price || undefined,
-      available: f.available,
-    })),
+    ebook: resolveEbookFormat(row.book_formats),
     publicationDate: row.publication_date || undefined,
     publisher: row.publisher || undefined,
     isbn: row.isbn || undefined,
@@ -73,7 +116,7 @@ function mapRowToBook(row: any): Book {
     language: row.language || undefined,
     images: {
       primary: resolveCoverImage(row.cover_primary),
-      hover: resolveCoverImage(row.cover_hover),
+      hover: resolveHoverImage(row.cover_hover),
     },
     featured: row.featured || false,
     isNew: row.is_new || false,
@@ -84,10 +127,30 @@ function mapRowToBook(row: any): Book {
 
 export interface GetBooksParams {
   category?: BookCategory
-  subcategorySlug?: string
   sort?: "featured" | "price-asc" | "price-desc" | "newest"
-  query?: string
   limit?: number
+}
+
+/**
+ * Classifies a list-query result:
+ *  - error → log + throw (a failure must never be cached as [])
+ *  - no error, array returned → as-is ([] is a legitimate empty result)
+ *  - no error, data missing → unexpected response shape: log + throw
+ *    (a successful list select always yields an array, never null)
+ */
+export function resolveRows<T>(
+  result: { data: T[] | null | undefined; error: { message?: string } | null },
+  context: string,
+): T[] {
+  if (result.error) {
+    console.error(`[books] ${context} failed`, result.error)
+    throw new Error(`${context}: ${result.error.message || "query failed"}`)
+  }
+  if (!Array.isArray(result.data)) {
+    console.error(`[books] ${context} returned no data`, result.data)
+    throw new Error(`${context}: no data returned`)
+  }
+  return result.data
 }
 
 export async function getBooks(params: GetBooksParams = {}): Promise<Book[]> {
@@ -100,26 +163,21 @@ export async function getBooks(params: GetBooksParams = {}): Promise<Book[]> {
   if (params.category) {
     query = query.eq("category", params.category)
   }
-  if (params.subcategorySlug) {
-    query = query.eq("subcategory_slug", params.subcategorySlug)
-  }
   if (params.limit) {
     query = query.limit(params.limit)
   }
 
-  const { data, error } = await query
+  const rows = resolveRows(await query, `getBooks(${JSON.stringify(params)})`)
 
-  if (error || !data) return []
-
-  let books = data.map(mapRowToBook)
+  let books = rows.map(mapRowToBook)
 
   // Client-side sort
   switch (params.sort) {
     case "price-asc":
-      books.sort((a, b) => a.formats[0]?.price - b.formats[0]?.price)
+      books.sort((a, b) => a.ebook.price - b.ebook.price)
       break
     case "price-desc":
-      books.sort((a, b) => b.formats[0]?.price - a.formats[0]?.price)
+      books.sort((a, b) => b.ebook.price - a.ebook.price)
       break
     case "newest":
       books.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0))
@@ -129,18 +187,24 @@ export async function getBooks(params: GetBooksParams = {}): Promise<Book[]> {
       books.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0))
   }
 
-  // Text search
-  if (params.query) {
-    const q = params.query.toLowerCase()
-    books = books.filter(
-      (b) =>
-        b.title.toLowerCase().includes(q) ||
-        b.author.toLowerCase().includes(q) ||
-        b.description.toLowerCase().includes(q),
-    )
-  }
-
   return books
+}
+
+/**
+ * Classifies a maybeSingle() query result:
+ *  - error → log + throw (a failure must never be cached as a miss)
+ *  - no error, no row → null (true not-found, safe to cache)
+ *  - row → returned as-is
+ */
+export function resolveSingleRow<T>(
+  result: { data: T | null; error: { message?: string } | null },
+  context: string,
+): T | null {
+  if (result.error) {
+    console.error(`[books] ${context} failed`, result.error)
+    throw new Error(`${context}: ${result.error.message || "query failed"}`)
+  }
+  return result.data
 }
 
 export async function getBookById(id: string): Promise<Book | null> {
@@ -150,72 +214,133 @@ export async function getBookById(id: string): Promise<Book | null> {
     .from("books")
     .select("*, book_formats(*)")
     .eq("id", id)
-    .single()
+    .maybeSingle()
 
-  if (error || !data) return null
+  const row = resolveSingleRow({ data, error }, `getBookById(${id})`)
+  if (!row) return null
 
-  return mapRowToBook(data)
+  return mapRowToBook(row)
 }
 
 export async function getFeatured(): Promise<Book[]> {
   const client = getClient()
 
-  const { data, error } = await client.database
+  const result = await client.database
     .from("books")
     .select("*, book_formats(*)")
     .eq("featured", true)
     .limit(6)
 
-  if (error || !data) return []
-  return data.map(mapRowToBook)
+  return resolveRows(result, "getFeatured()").map(mapRowToBook)
 }
 
 export async function getNewReleases(): Promise<Book[]> {
   const client = getClient()
 
-  const { data, error } = await client.database
+  const result = await client.database
     .from("books")
     .select("*, book_formats(*)")
     .eq("is_new", true)
     .limit(6)
 
-  if (error || !data) return []
-  return data.map(mapRowToBook)
+  return resolveRows(result, "getNewReleases()").map(mapRowToBook)
 }
 
 export async function getTrending(): Promise<Book[]> {
   const client = getClient()
 
-  const { data, error } = await client.database
+  const result = await client.database
     .from("books")
     .select("*, book_formats(*)")
     .eq("trending", true)
     .limit(6)
 
-  if (error || !data) return []
-  return data.map(mapRowToBook)
+  return resolveRows(result, "getTrending()").map(mapRowToBook)
 }
 
 export async function getRelated(id: string): Promise<Book[]> {
+  // getBookById already logs + throws on failure — never degrade that to []
   const book = await getBookById(id)
   if (!book) return []
   return getBooks({ category: book.category, limit: 4 })
 }
 
-export async function getAllSubcategories(): Promise<{ slug: string; label: string }[]> {
-  const client = getClient()
+export type SiteSettings = Record<string, any>
 
-  const { data, error } = await client.database
-    .from("books")
-    .select("subcategory, subcategory_slug")
-
-  if (error || !data) return []
-
-  const seen = new Map<string, string>()
-  for (const row of data) {
-    if (!seen.has(row.subcategory_slug)) {
-      seen.set(row.subcategory_slug, row.subcategory)
+function unwrapJsonString(value: any): any {
+  if (typeof value !== "string") return value
+  const trimmed = value.trim()
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    try {
+      const parsed = JSON.parse(trimmed)
+      if (typeof parsed === "string") return parsed
+    } catch {
+      /* not a JSON string */
     }
   }
-  return Array.from(seen.entries()).map(([slug, label]) => ({ slug, label }))
+  return value
+}
+
+export async function getSiteSettings(): Promise<SiteSettings> {
+  try {
+    const res = await fetch(`${INSFORGE_URL}/api/database/rpc/get_site_settings`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: INSFORGE_ANON_KEY,
+        Authorization: `Bearer ${INSFORGE_ANON_KEY}`,
+      },
+      body: "{}",
+    })
+    if (!res.ok) return {}
+    const data = await res.json()
+    const out: SiteSettings = {}
+    for (const [key, value] of Object.entries(data || {})) {
+      out[key] = unwrapJsonString(value)
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+export interface Post {
+  id: string
+  slug: string
+  title: string
+  excerpt?: string | null
+  content?: string | null
+  status?: string
+  post_type?: string
+  author_name?: string | null
+  published_at?: string | null
+  tags?: string[] | null
+  cover_image?: string | null
+  meta_description?: string | null
+}
+
+export async function getPublishedPosts(): Promise<Post[]> {
+  try {
+    const res = await fetch(`${INSFORGE_URL}/api/database/records/posts?status=eq.published&order=published_at.desc`, {
+      headers: { apikey: INSFORGE_ANON_KEY, Authorization: `Bearer ${INSFORGE_ANON_KEY}` },
+    })
+    if (!res.ok) return []
+    return (await res.json()) as Post[]
+  } catch {
+    return []
+  }
+}
+
+export async function getPostBySlug(slug: string): Promise<Post | null> {
+  try {
+    const res = await fetch(
+      `${INSFORGE_URL}/api/database/records/posts?slug=eq.${encodeURIComponent(slug)}&status=eq.published&select=*`,
+      { headers: { apikey: INSFORGE_ANON_KEY, Authorization: `Bearer ${INSFORGE_ANON_KEY}` } },
+    )
+    if (!res.ok) return null
+    const posts = (await res.json()) as Post[]
+    return posts[0] || null
+  } catch {
+    return null
+  }
 }

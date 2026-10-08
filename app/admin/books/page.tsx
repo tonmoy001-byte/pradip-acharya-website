@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { money } from "@/lib/format"
 import { resolveCoverImage } from "@/lib/api"
+import { BOOK_CATEGORY_LABEL } from "@/lib/data"
 import { useRouter } from "next/navigation"
 
 interface BookFormat {
@@ -14,7 +15,6 @@ interface BookFormat {
   available: boolean
   delivery_type: string
 }
-
 interface Book {
   id: string
   title: string
@@ -27,49 +27,56 @@ interface Book {
   is_new: boolean
   trending: boolean
   book_formats: BookFormat[]
+  ebook: BookFormat | null
   created_at: string
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  novels: "উপন্যাস",
-  books: "বই",
 }
 
 export default function AdminBooksPage() {
   const [books, setBooks] = useState<Book[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [categoryFilter, setCategoryFilter] = useState("")
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleteTitle, setDeleteTitle] = useState("")
   const router = useRouter()
 
+  // Ebook-only: surface the single digital format per book.
+  const withEbook = (books: Book[]) =>
+    books.map((b) => ({
+      ...b,
+      ebook:
+        b.book_formats?.find((f) => f.delivery_type === "digital") ?? null,
+    }))
+
   const fetchBooks = () => {
     const params = new URLSearchParams()
     if (search) params.set("search", search)
-    if (categoryFilter) params.set("category", categoryFilter)
 
     fetch(`/api/admin/books?${params}`)
       .then((r) => r.json())
-      .then((d) => setBooks(d.books || []))
+      .then((d) => setBooks(withEbook(d.books || [])))
       .catch(() => {})
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
     fetchBooks()
-  }, [search, categoryFilter])
+  }, [search])
 
   const handleDelete = async () => {
     if (!deleteId) return
     try {
       const res = await fetch(`/api/admin/books/${deleteId}`, { method: "DELETE" })
+      const data = await res.json()
       if (res.ok) {
         setBooks((prev) => prev.filter((b) => b.id !== deleteId))
         setDeleteId(null)
         setDeleteTitle("")
+      } else {
+        alert(data.error || "Failed to delete book")
       }
-    } catch {}
+    } catch (err) {
+      alert("Failed to delete book: " + (err instanceof Error ? err.message : String(err)))
+    }
   }
 
   return (
@@ -95,15 +102,6 @@ export default function AdminBooksPage() {
           onChange={(e) => setSearch(e.target.value)}
           style={{ maxWidth: 300 }}
         />
-        <select
-          className="admin-select"
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-        >
-          <option value="">সব ক্যাটাগরি</option>
-          <option value="novels">উপন্যাস</option>
-          <option value="books">বই</option>
-        </select>
       </div>
 
       {loading ? (
@@ -120,13 +118,13 @@ export default function AdminBooksPage() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>বই</th>
-                <th>লেখক</th>
-                <th>ক্যাটাগরি</th>
-                <th>ফরম্যাট</th>
-                <th>মূল্য</th>
-                <th>বৈশিষ্ট্য</th>
-                <th>কাজ</th>
+              <th>বই</th>
+              <th>লেখক</th>
+              <th>ক্যাটাগরি</th>
+              <th>ইবুক</th>
+              <th>মূল্য</th>
+              <th>বৈশিষ্ট্য</th>
+              <th>কাজ</th>
               </tr>
             </thead>
             <tbody>
@@ -150,17 +148,23 @@ export default function AdminBooksPage() {
                     </div>
                   </td>
                   <td>{book.author}</td>
-                  <td>{CATEGORY_LABELS[book.category] || book.category}</td>
+                  <td>{BOOK_CATEGORY_LABEL}</td>
                   <td>
-                    {book.book_formats?.map((f) => (
-                      <div key={f.id} style={{ fontSize: "0.8125rem" }}>
-                        {f.format_name} — {money(f.price)}
-                        {!f.available && <span style={{ color: "var(--ink-muted)", marginLeft: 4 }}>(বন্ধ)</span>}
+                    {book.ebook ? (
+                      <div style={{ fontSize: "0.8125rem" }}>
+                        ডিজিটাল ইবুক (PDF) — {money(book.ebook.price)}
+                        {!book.ebook.available && (
+                          <span style={{ color: "var(--ink-muted)", marginLeft: 4 }}>(বন্ধ)</span>
+                        )}
                       </div>
-                    ))}
+                    ) : (
+                      <span style={{ color: "var(--ink-muted)", fontSize: "0.8125rem" }}>
+                        ইবুক নেই — বিক্রির জন্য ইবুক যোগ করুন
+                      </span>
+                    )}
                   </td>
                   <td style={{ fontFamily: "monospace" }}>
-                    {book.book_formats?.[0] ? money(book.book_formats[0].price) : "—"}
+                    {book.ebook ? money(book.ebook.price) : "—"}
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>

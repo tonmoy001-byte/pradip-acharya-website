@@ -1,8 +1,17 @@
 // app/api/payment/verify/route.ts
-// GET: Verify RupantorPay payment after customer redirect.
+// GET: Verify a RupantorPay payment after the customer redirect.
+//
+// This is the settlement path. Once RupantorPay confirms the transaction as
+// COMPLETED and the amount covers the order total, the order is marked paid and
+// `fulfill_paid_order` immediately issues the download grants — there is no
+// waiting on a human admin, so the buyer can download the moment they land back
+// on the site.
+//
+// Writes go through the service client because the `orders` table has no
+// non-admin UPDATE policy: the customer's own JWT cannot mark their order paid.
 
 import { NextResponse } from "next/server"
-import { createServerClient } from "@/lib/insforge-server"
+import { createServiceClient } from "@/lib/insforge-service"
 import { verifyRupantorPayment } from "@/lib/rupantor"
 
 export const dynamic = "force-dynamic"
@@ -31,7 +40,7 @@ export async function GET(req: Request) {
     // Verify with RupantorPay
     const result = await verifyRupantorPayment(transactionId)
 
-    const client = await createServerClient()
+    const client = createServiceClient()
 
     // Sanitize inputs before interpolating into PostgREST .or() filter
     const safeTxnId = sanitizePostgREST(transactionId)
@@ -55,8 +64,14 @@ export async function GET(req: Request) {
     const order = orders[0] as { id: string; payment_status: string; total: number }
 
     if (order.payment_status === "paid") {
-      // Already processed
-      return NextResponse.json({ status: "paid", order_id: order.id })
+      // Already settled by the webhook or an earlier visit. Re-running
+      // fulfillment is idempotent and repairs the case where the first
+      // settlement marked the order paid but never issued the grants.
+      const { data: repaired } = await client.database.rpc("fulfill_paid_order", {
+        p_order_id: order.id,
+        p_payment_reference: transactionId,
+      })
+      return NextResponse.json({ status: "paid", order_id: order.id, ...(repaired as object) })
     }
 
     if (result.status === "COMPLETED") {
@@ -67,12 +82,12 @@ export async function GET(req: Request) {
         return NextResponse.json({ error: "Payment amount does not match order total" }, { status: 400 })
       }
 
-      // Update order to paid
       const { error: updateError } = await client.database
         .from("orders")
         .update({
           payment_status: "paid",
           payment_reference: transactionId,
+          paid_at: new Date().toISOString(),
         })
         .eq("id", order.id)
 
@@ -90,7 +105,18 @@ export async function GET(req: Request) {
         verified: true,
       })
 
-      return NextResponse.json({ status: "paid", order_id: order.id })
+      // Release the files immediately — no admin approval in the loop.
+      const { data: fulfillment, error: fulfillError } = await client.database.rpc("fulfill_paid_order", {
+        p_order_id: order.id,
+        p_payment_reference: transactionId,
+      })
+
+      if (fulfillError) {
+        console.error("Fulfillment failed:", fulfillError)
+        return NextResponse.json({ status: "paid", order_id: order.id, download_ready: false }, { status: 200 })
+      }
+
+      return NextResponse.json({ status: "paid", order_id: order.id, ...(fulfillment as object) })
     }
 
     return NextResponse.json({ status: "failed", order_id: order.id })

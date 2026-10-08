@@ -8,7 +8,6 @@ import { money } from "@/lib/format"
 interface Order {
   id: string
   payment_status: string
-  fulfillment_status: string
   total: number
   created_at: string
 }
@@ -26,14 +25,6 @@ const PAYMENT_LABELS: Record<string, string> = {
   paid: "পেইড",
   refunded: "ফেরত",
   failed: "ব্যর্থ",
-}
-
-const FULFILLMENT_LABELS: Record<string, string> = {
-  not_applicable: "প্রযোজ্য নয়",
-  pending: "অপেক্ষমান",
-  shipped: "পাঠানো হয়েছে",
-  delivered: "ডেলিভারি সম্পন্ন",
-  returned: "ফেরত",
 }
 
 export default function AdminCustomerDetailPage() {

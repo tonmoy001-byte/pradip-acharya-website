@@ -4,10 +4,12 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
+import SeoNoindex from "@/components/SeoNoindex"
 
 interface DownloadGrant {
   id: string
   order_id: string
+  book_title: string | null
   max_downloads: number
   download_count: number
   expires_at: string
@@ -37,13 +39,13 @@ export default function MyDownloadsPage() {
         const data = await res.json()
 
         if (!res.ok) {
-          setError(data.error || "Failed to load downloads")
+          setError(data.error || "ডাউনলোড তালিকা লোড করা যায়নি")
           return
         }
 
         setGrants(data.data || [])
       } catch {
-        setError("Failed to load downloads")
+        setError("ডাউনলোড তালিকা লোড করা যায়নি")
       } finally {
         setLoading(false)
       }
@@ -58,8 +60,8 @@ export default function MyDownloadsPage() {
       const res = await fetch(`/api/my-downloads/${grantId}`, { credentials: "include" })
 
       if (!res.ok) {
-        const data = await res.json()
-        alert(data.error || "Download failed")
+        const data = await res.json().catch(() => ({}))
+        setError(data.error || "ডাউনলোড ব্যর্থ হয়েছে")
         return
       }
 
@@ -82,7 +84,7 @@ export default function MyDownloadsPage() {
         ),
       )
     } catch {
-      alert("Download failed")
+      setError("ডাউনলোড ব্যর্থ হয়েছে")
     } finally {
       setDownloading(null)
     }
@@ -91,15 +93,17 @@ export default function MyDownloadsPage() {
   if (authLoading || loading) {
     return (
       <div className="container section-padding">
+        <SeoNoindex />
         <div className="page-header"><h1>আমার ডাউনলোড</h1></div>
         <p>লোড হচ্ছে...</p>
       </div>
     )
   }
 
-  if (error) {
+  if (error && grants.length === 0) {
     return (
       <div className="container section-padding">
+        <SeoNoindex />
         <div className="page-header"><h1>আমার ডাউনলোড</h1></div>
         <div role="alert" style={{ padding: "var(--sp-3) var(--sp-4)", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius)", color: "#991b1b", fontSize: "0.875rem" }}>
           {error}
@@ -110,13 +114,25 @@ export default function MyDownloadsPage() {
 
   return (
     <div className="container section-padding">
+      <SeoNoindex />
       <div className="page-header">
         <h1>আমার ডাউনলোড</h1>
+        <p style={{ color: "var(--ink-muted)", marginTop: "var(--sp-2)" }}>
+          পেমেন্ট যাচাই ও অ্যাডমিন অনুমোদনের পর অনুমোদিত ইবুকগুলো এখানে পাবেন।
+        </p>
       </div>
+
+      {error && (
+        <div role="alert" style={{ padding: "var(--sp-3) var(--sp-4)", marginBottom: "var(--sp-4)", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius)", color: "#991b1b", fontSize: "0.875rem" }}>
+          {error}
+        </div>
+      )}
 
       {grants.length === 0 ? (
         <div className="cart-empty">
-          <p style={{ marginBottom: "var(--sp-6)" }}>আপনার কোনো ডাউনলোড নেই।</p>
+          <p style={{ marginBottom: "var(--sp-6)" }}>
+            আপনার কোনো অনুমোদিত ডাউনলোড নেই। পেমেন্ট সম্পন্ন ও অ্যাডমিন অনুমোদনের পর এখানে দেখা যাবে।
+          </p>
           <Link href="/books" className="btn btn-primary">সকল বই দেখুন</Link>
         </div>
       ) : (
@@ -132,7 +148,10 @@ export default function MyDownloadsPage() {
                 <div style={{ display: "flex", justifyContent: "space-between", width: "100%", flexWrap: "wrap", gap: "var(--sp-2)" }}>
                   <div>
                     <p style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: "0.875rem" }}>
-                      অর্ডার #{grant.order_id.slice(0, 8)}...
+                      {grant.book_title || "ইবুক"}
+                    </p>
+                    <p style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>
+                      ফরম্যাট: ডিজিটাল ইবুক (PDF) · অর্ডার #{grant.order_id.slice(0, 8)}...
                     </p>
                     <p style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>
                       ডাউনলোড: {grant.download_count}/{grant.max_downloads}
@@ -149,11 +168,11 @@ export default function MyDownloadsPage() {
                         disabled={downloading === grant.id}
                         style={{ fontSize: "0.875rem" }}
                       >
-                        {downloading === grant.id ? "ডাউনলোড হচ্ছে..." : "ডাউনলোড"}
+                        {downloading === grant.id ? "ডাউনলোড হচ্ছে..." : "ইবুক ডাউনলোড"}
                       </button>
                     ) : (
                       <span style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>
-                        {isExpired ? "মেয়াদোত্তীর্ণ" : isRevoked ? "বাতিল" : "সীমা শেষ"}
+                        {isRevoked ? "বাতিল" : isExpired ? "মেয়াদোত্তীর্ণ" : "সীমা শেষ"}
                       </span>
                     )}
                   </div>

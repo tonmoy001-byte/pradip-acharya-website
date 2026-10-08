@@ -4,6 +4,8 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { invalidateBooks } from "@/lib/public-cache"
+import { EBOOK_DELIVERY_TYPE } from "@/lib/data"
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -18,19 +20,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const client = await createServerClient()
 
-    // Find the format_id for this book + format name
-    const { data: format, error: fmtErr } = await client.database
+    // Ebook-only: resolve the book's digital format directly. A name lookup is
+    // only a fallback for legacy rows whose format_name differs.
+    const { data: digitalFormats, error: digitalErr } = await client.database
       .from("book_formats")
       .select("id")
       .eq("book_id", bookId)
-      .eq("format_name", formatName)
-      .single()
+      .eq("delivery_type", EBOOK_DELIVERY_TYPE)
+      .limit(1)
 
-    if (fmtErr || !format) {
-      return NextResponse.json({ error: "Format not found" }, { status: 404 })
+    let formatId = digitalFormats?.[0]?.id as string | undefined
+
+    if (!formatId) {
+      const { data: format, error: fmtErr } = await client.database
+        .from("book_formats")
+        .select("id")
+        .eq("book_id", bookId)
+        .eq("format_name", formatName)
+        .single()
+
+      if (fmtErr || !format) {
+        return NextResponse.json({ error: "এই বইয়ের ইবুক ফরম্যাট পাওয়া যায়নি" }, { status: 404 })
+      }
+      formatId = format.id
     }
-
-    const formatId = format.id
 
     // Check for existing digital asset
     const { data: existing } = await client.database
@@ -59,6 +72,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     }
 
+    invalidateBooks(bookId)
     return NextResponse.json({ success: true })
   } catch (err: any) {
     if (err instanceof Response) return err

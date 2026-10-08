@@ -5,7 +5,7 @@ export async function GET() {
     const baseUrl = process.env.NEXT_PUBLIC_INSFORGE_URL!
     const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
     const res = await fetch(
-      `${baseUrl}/rest/v1/rpc/get_site_settings`,
+      `${baseUrl}/api/database/rpc/get_site_settings`,
       {
         method: "POST",
         headers: {

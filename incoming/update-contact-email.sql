@@ -1,0 +1,1 @@
+update site_settings set value = '"Pradipkumaracharjee78@gmail.com"' where key = 'contact_email';

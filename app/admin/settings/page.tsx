@@ -17,6 +17,7 @@ const SETTING_GROUPS = [
       { key: "site_tagline", label: "ট্যাগলাইন", type: "text" },
       { key: "contact_email", label: "ইমেইল", type: "text" },
       { key: "contact_phone", label: "ফোন", type: "text" },
+      { key: "contact_whatsapp", label: "হোয়াটসঅ্যাপ", type: "text" },
     ],
   },
   {
@@ -27,14 +28,6 @@ const SETTING_GROUPS = [
       { key: "hero_subtitle", label: "হিরো সাবটাইটেল", type: "text" },
       { key: "promo_banner_text", label: "প্রোমো ব্যানার", type: "text" },
       { key: "footer_text", label: "ফুটার টেক্সট", type: "textarea" },
-    ],
-  },
-  {
-    title: "ডেলিভারি",
-    category: "delivery",
-    fields: [
-      { key: "delivery_charge", label: "ডেলিভারি চার্জ (টাকা)", type: "number" },
-      { key: "free_delivery_threshold", label: "বিনামূল্যে ডেলিভারির ন্যূনতম (টাকা)", type: "number" },
     ],
   },
   {
@@ -69,6 +62,22 @@ export default function AdminSettingsPage() {
 
   const updateValue = (key: string, value: string | number) => {
     setSettings((prev) => ({ ...prev, [key]: value }))
+  }
+
+  /**
+   * Pull a plain string out of a stored value. The DB column is JSONB, so an
+   * admin tool can write `{"email": "..."}` instead of the plain string the
+   * form expects. Without this, the input renders "[object Object]" and saving
+   * writes a nested object back.
+   */
+  function normaliseSetting(value: any): string {
+    if (value === null || value === undefined) return ""
+    if (typeof value === "string") return value
+    if (typeof value === "object") {
+      const inner = value.email ?? value.value ?? value.address ?? value.phone
+      return typeof inner === "string" ? inner : ""
+    }
+    return String(value)
   }
 
   const handleSave = async () => {
@@ -113,8 +122,7 @@ export default function AdminSettingsPage() {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div>
             <h1 className="admin-page-title">সেটিংস</h1>
-            <p className="admin-page-subtitle">সাইটের সাধারণ সেটিংস</p>
-          </div>
+            <p className="admin-page-subtitle">সাইটের সাধারণ সেটিংস</p>          </div>
           <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
             {saving ? "সেভ হচ্ছে..." : "সেভ করুন"}
           </button>
@@ -157,10 +165,10 @@ export default function AdminSettingsPage() {
                       value={settings[field.key] ?? ""}
                       onChange={(e) => updateValue(field.key, e.target.value === "" ? "" : Number(e.target.value))}
                     />
-                  ) : (
+) : (
                     <input
                       className="admin-input"
-                      value={settings[field.key] || ""}
+                      value={normaliseSetting(settings[field.key])}
                       onChange={(e) => updateValue(field.key, e.target.value)}
                     />
                   )}

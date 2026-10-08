@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { invalidatePosts } from "@/lib/public-cache"
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -58,6 +59,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         .eq("id", id)
     }
 
+    invalidatePosts(body.slug)
     return NextResponse.json({ success: true })
   } catch (err: any) {
     if (err instanceof Response) return err
@@ -79,6 +81,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
+    invalidatePosts()
     return NextResponse.json({ success: true })
   } catch (err: any) {
     if (err instanceof Response) return err

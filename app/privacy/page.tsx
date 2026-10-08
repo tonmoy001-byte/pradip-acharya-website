@@ -1,13 +1,25 @@
 import type { Metadata } from "next"
+import { pageMetadata } from "@/lib/seo"
+import { breadcrumbList } from "@/lib/structured-data"
+import JsonLd from "@/components/JsonLd"
 
-export const metadata: Metadata = {
-  title: "গোপনীয়তা নীতি | প্রদীপ কুমার আচার্য্য",
-  description: "আমাদের গোপনীয়তা নীতি।",
-}
+export const metadata: Metadata = pageMetadata({
+  title: "গোপনীয়তা নীতি",
+  description:
+    "প্রদীপ কুমার আচার্য্যের ওয়েবসাইটে অর্ডার ও অ্যাকাউন্টের সময় কোন তথ্য সংগ্রহ ও সংরক্ষণ করা হয়, এবং তা কীভাবে ব্যবহার করা হয়, তা বিস্তারিত জানুন।",
+  path: "/privacy",
+  keywords: ["গোপনীয়তা নীতি", "প্রাইভেসি পলিসি", "ব্যক্তিগত তথ্য"],
+})
 
 export default function PrivacyPage() {
   return (
     <div className="container section-padding" style={{ maxWidth: 700, marginInline: "auto" }}>
+      <JsonLd
+        data={breadcrumbList([
+          { name: "হোম", path: "/" },
+          { name: "গোপনীয়তা নীতি", path: "/privacy" },
+        ])}
+      />
       <div className="page-header">
         <h1>গোপনীয়তা নীতি</h1>
       </div>

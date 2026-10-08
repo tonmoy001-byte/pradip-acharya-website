@@ -5,6 +5,7 @@
 
 import Link from "next/link"
 import { useSearchParams } from "next/navigation"
+import SeoNoindex from "@/components/SeoNoindex"
 
 export default function PaymentCancelPage() {
   const searchParams = useSearchParams()
@@ -12,6 +13,7 @@ export default function PaymentCancelPage() {
 
   return (
     <div className="container section-padding">
+      <SeoNoindex />
       <div className="order-confirm">
         <h1>পেমেন্ট বাতিল</h1>
         <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)" }}>

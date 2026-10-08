@@ -1,34 +1,84 @@
+// app/contact/page.tsx
+// Two-column layout inspired by the reference: contact details on the left,
+// form on the right. Uses the site's own terracotta brand palette rather than
+// the reference's green Material theme — the reference is only the layout.
+//
+// Contact details are read from site_settings so they stay in sync with the
+// admin panel. No fabricated social links: the project records none.
+
 import type { Metadata } from "next"
+import ContactForm from "@/components/ContactForm"
+import { pageMetadata } from "@/lib/seo"
+import { breadcrumbList } from "@/lib/structured-data"
+import JsonLd from "@/components/JsonLd"
+import { getCachedSiteSettings } from "@/lib/public-cache"
 
-export const metadata: Metadata = {
-  title: "যোগাযোগ | প্রদীপ কুমার আচার্য্য",
-  description: "আমাদের সাথে যোগাযোগ করুন।",
-}
+export const metadata: Metadata = pageMetadata({
+  title: "যোগাযোগ",
+  description:
+    "“ছেঁড়া পুষ্প” ইবুক সংগ্রহ, পেমেন্ট বা ডাউনলোডে সমস্যা হলে প্রদীপ কুমার আচার্য্যের ওয়েবসাইটে ফর্ম পূরণ করে সরাসরি যোগাযোগ করুন।",
+  path: "/contact",
+  keywords: ["যোগাযোগ", "সাপোর্ট", "ইবুক সহায়তা"],
+})
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const settings = await getCachedSiteSettings()
+  const email = typeof settings.contact_email === "string" ? settings.contact_email.trim() : ""
+
   return (
-    <div className="container section-padding" style={{ maxWidth: 600, marginInline: "auto" }}>
-      <div className="page-header">
-        <h1>যোগাযোগ</h1>
-      </div>
+    <div className="contact-page">
+      <JsonLd
+        data={breadcrumbList([
+          { name: "হোম", path: "/" },
+          { name: "যোগাযোগ", path: "/contact" },
+        ])}
+      />
 
-      <div style={{ lineHeight: 1.8 }}>
-        <h3 style={{ marginBottom: "var(--sp-3)" }}>পাঠক সহায়তা</h3>
-        <p style={{ marginBottom: "var(--sp-4)" }}>
-          বই সম্পর্কে যেকোনো প্রশ্ন বা অর্ডার সংক্রান্ত সমস্যার জন্য আমাদের সাথে
-          যোগাযোগ করুন।
-        </p>
+      <div className="contact-grid">
+        {/* Left: contact details */}
+        <section className="contact-info" aria-label="যোগাযোগের তথ্য">
+          <span className="contact-eyebrow">যোগাযোগ</span>
+          <h1>আমাদের সাথে যোগাযোগ করুন</h1>
+          <p className="contact-lede">
+            “ছেঁড়া পুষ্প” ইবুক সংগ্রহ, পেমেন্ট বা ডাউনলোডে সমস্যা হলে আমাদের
+            সাথে সরাসরি যোগাযোগ করুন। আপনার বার্তা সাধারণত ২৪ ঘন্টার মধ্যে
+            উত্তর দেওয়া হয়।
+          </p>
 
-        <h3 style={{ marginBottom: "var(--sp-3)" }}>অর্ডার সহায়তা</h3>
-        <p style={{ marginBottom: "var(--sp-4)" }}>
-          আপনার অর্ডার সম্পর্কে জানতে চাইলে অর্ডার নম্বর সহ আমাদের কাছে লিখুন।
-        </p>
+          <ul className="contact-details">
+            {email && (
+              <li>
+                <span className="contact-detail-label">ইমেইল</span>
+                <a href={`mailto:${email}`} className="contact-detail-value">
+                  {email}
+                </a>
+              </li>
+            )}
+          </ul>
 
-        <h3 style={{ marginBottom: "var(--sp-3)" }}>ইমেইল</h3>
-        <p style={{ color: "var(--terracotta)" }}>info@pradeep-acharya.example.com</p>
-        <p style={{ fontSize: "0.8125rem", color: "var(--stone)", marginTop: "var(--sp-2)" }}>
-          [আসল ইমেইল ঠিকানা এখানে যোগ করুন]
-        </p>
+          <div className="contact-faq" aria-label="সাধারণ প্রশ্ন">
+            <h2>সাধারণ জিজ্ঞাসা</h2>
+            <details>
+              <summary>ইবুক ডাউনলোড কীভাবে কাজ করে?</summary>
+              <p>
+                পেমেন্ট সম্পন্ন হওয়ার সঙ্গে সঙ্গে ডাউনলোড লিংক সক্রিয় হয়।
+                আপনার ইমেইলে একটি দীর্ঘমেয়াদী লিংক ও লাইসেন্স রসিদ পাঠানো হয়।
+              </p>
+            </details>
+            <details>
+              <summary>কোন কোন মাধ্যমে পেমেন্ট করা যায়?</summary>
+              <p>
+                bKash, Nagad, Rocket ও কার্ড দিয়ে পেমেন্ট করে ৫০ টাকায় সরাসরি
+                ইবুক কেনা সম্ভব।
+              </p>
+            </details>
+          </div>
+        </section>
+
+        {/* Right: form */}
+        <div className="contact-form-wrap">
+          <ContactForm />
+        </div>
       </div>
     </div>
   )

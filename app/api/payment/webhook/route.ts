@@ -4,7 +4,7 @@
 // Always re-verifies payment status with the RupantorPay API before marking orders as paid.
 
 import { NextResponse } from "next/server"
-import { createServerClient } from "@/lib/insforge-server"
+import { createServiceClient } from "@/lib/insforge-service"
 import { verifyRupantorPayment } from "@/lib/rupantor"
 
 export const dynamic = "force-dynamic"
@@ -69,7 +69,7 @@ export async function POST(req: Request) {
     // Verify with RupantorPay API (always re-verify, never trust the webhook payload alone)
     const result = await verifyRupantorPayment(transaction_id)
 
-    const client = await createServerClient()
+    const client = createServiceClient()
 
     // Find order
     const orderId = result.metadata?.order_id
@@ -90,7 +90,12 @@ export async function POST(req: Request) {
     const order = orders[0] as { id: string; payment_status: string; total: number }
 
     if (order.payment_status === "paid") {
-      // Already processed
+      // Already settled. Fulfillment is idempotent, so this also covers the
+      // case where the first settlement granted nothing.
+      await client.database.rpc("fulfill_paid_order", {
+        p_order_id: order.id,
+        p_payment_reference: transaction_id,
+      })
       return NextResponse.json({ received: true })
     }
 
@@ -108,6 +113,7 @@ export async function POST(req: Request) {
         .update({
           payment_status: "paid",
           payment_reference: transaction_id,
+          paid_at: new Date().toISOString(),
         })
         .eq("id", order.id)
 
@@ -119,6 +125,17 @@ export async function POST(req: Request) {
         status: "completed",
         verified: true,
       })
+
+      // Release the files immediately — no admin approval in the loop. This is
+      // the server-to-server path, so it settles the order even if the buyer
+      // closes the tab before the redirect completes.
+      const { error: fulfillError } = await client.database.rpc("fulfill_paid_order", {
+        p_order_id: order.id,
+        p_payment_reference: transaction_id,
+      })
+      if (fulfillError) {
+        console.error("[webhook] Fulfillment failed:", fulfillError)
+      }
     }
 
     return NextResponse.json({ received: true })

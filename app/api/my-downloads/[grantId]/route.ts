@@ -1,13 +1,30 @@
 // app/api/my-downloads/[grantId]/route.ts
 // GET: Authenticated PDF download endpoint.
-// Verifies ownership + payment, validates grant, increments count, returns file.
-// Bypasses broken consume_download RPC (ambiguous column bug).
+//
+// Server-side authorization chain — every step must pass before a byte is
+// returned, and the PDF is only ever streamed from the private storage bucket:
+//   1. authenticated user (requireUser)
+//   2. grant exists, is owned by this user, and is not revoked
+//   3. grant is not expired and under its download limit
+//   4. grant's order_item exists, is a digital (ebook) line, and belongs to an
+//      order owned by this user whose payment_status = 'paid'
+//   5. an active digital asset is attached to that exact format
+// There is no way to reach another customer's PDF by editing grant, order,
+// order-item or format ids, and no public/predictable URL for the file.
 
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { EBOOK_DELIVERY_TYPE } from "@/lib/data"
 
 export const dynamic = "force-dynamic"
+
+const NO_STORE = { "Cache-Control": "no-store" }
+
+/** Uniform rejection — never reveal whether a grant/order id exists. */
+function denied(status: number, message: string) {
+  return NextResponse.json({ error: message }, { status, headers: NO_STORE })
+}
 
 type RouteParams = { params: Promise<{ grantId: string }> }
 
@@ -18,7 +35,11 @@ export async function GET(req: Request, { params }: RouteParams) {
 
     const { grantId } = await params
 
-    // 1. Fetch the grant
+    if (!grantId || grantId.length > 128) {
+      return denied(403, "Download grant not found or not authorized")
+    }
+
+    // 1. Fetch the grant, scoped to the authenticated user
     const { data: grants, error: fetchError } = await client.database
       .from("download_grants")
       .select("*")
@@ -28,47 +49,54 @@ export async function GET(req: Request, { params }: RouteParams) {
       .limit(1)
 
     if (fetchError || !grants || grants.length === 0) {
-      return NextResponse.json(
-        { error: "Download grant not found or not authorized" },
-        { status: 403, headers: { "Cache-Control": "no-store" } }
-      )
+      return denied(403, "Download grant not found or not authorized")
     }
 
     const grant = grants[0] as any
 
     // 2. Check expiry
-    if (new Date(grant.expires_at) < new Date()) {
-      return NextResponse.json(
-        { error: "Download link has expired" },
-        { status: 403, headers: { "Cache-Control": "no-store" } }
-      )
+    if (!grant.expires_at || new Date(grant.expires_at) < new Date()) {
+      return denied(403, "Download link has expired")
     }
 
     // 3. Check max downloads
     if (grant.download_count >= grant.max_downloads) {
-      return NextResponse.json(
-        { error: "Maximum download limit reached" },
-        { status: 403, headers: { "Cache-Control": "no-store" } }
-      )
+      return denied(403, "Maximum download limit reached")
     }
 
-    // 4. Get the order item to find book_id and format_id
+    // 4. Resolve the order item and verify it is an owned, paid, digital line
     const { data: orderItems, error: oiError } = await client.database
       .from("order_items")
-      .select("book_id, format_id")
+      .select("id, order_id, book_id, format_id, delivery_type_snapshot")
       .eq("id", grant.order_item_id)
       .limit(1)
 
     if (oiError || !orderItems || orderItems.length === 0) {
-      return NextResponse.json(
-        { error: "Order item not found" },
-        { status: 404, headers: { "Cache-Control": "no-store" } }
-      )
+      return denied(403, "Download grant not found or not authorized")
     }
 
     const orderItem = orderItems[0] as any
 
-    // 5. Get the digital asset (storage key) — digital_assets links via format_id only
+    if (String(orderItem.delivery_type_snapshot).toLowerCase() !== EBOOK_DELIVERY_TYPE) {
+      return denied(403, "This order line is not a digital ebook")
+    }
+
+    const { data: orders, error: orderError } = await client.database
+      .from("orders")
+      .select("id, user_id, payment_status")
+      .eq("id", orderItem.order_id)
+      .eq("user_id", user.id)
+      .limit(1)
+
+    if (orderError || !orders || orders.length === 0) {
+      return denied(403, "Download grant not found or not authorized")
+    }
+
+    if ((orders[0] as any).payment_status !== "paid") {
+      return denied(403, "Payment has not been confirmed for this order")
+    }
+
+    // 5. Get the digital asset (storage key) for this exact format
     const { data: assets, error: daError } = await client.database
       .from("digital_assets")
       .select("storage_key")
@@ -77,20 +105,12 @@ export async function GET(req: Request, { params }: RouteParams) {
       .limit(1)
 
     if (daError || !assets || assets.length === 0) {
-      return NextResponse.json(
-        { error: "No file attached to this order" },
-        { status: 404, headers: { "Cache-Control": "no-store" } }
-      )
+      return denied(404, "No file attached to this order")
     }
 
-    const asset = assets[0] as any
-    const storageKey = asset.storage_key
-
-    if (!storageKey) {
-      return NextResponse.json(
-        { error: "Storage key not found" },
-        { status: 404, headers: { "Cache-Control": "no-store" } }
-      )
+    const storageKey = (assets[0] as any)?.storage_key
+    if (!storageKey || typeof storageKey !== "string") {
+      return denied(404, "No file attached to this order")
     }
 
     // 6. Atomically increment download count
@@ -104,10 +124,7 @@ export async function GET(req: Request, { params }: RouteParams) {
       .limit(1)
     const freshGrant = freshGrants?.[0] as any
     if (freshGrant && freshGrant.download_count >= freshGrant.max_downloads) {
-      return NextResponse.json(
-        { error: "Maximum download limit reached" },
-        { status: 403, headers: { "Cache-Control": "no-store" } }
-      )
+      return denied(403, "Maximum download limit reached")
     }
 
     const { error: updateError } = await client.database
@@ -122,39 +139,39 @@ export async function GET(req: Request, { params }: RouteParams) {
       console.error("Failed to increment download count:", updateError)
     }
 
-    // 7. Download the PDF from storage
+    // 7. Stream the PDF from the private storage bucket
     const { data: blob, error: storageError } = await client.storage
       .from("digital-books")
       .download(storageKey)
 
     if (storageError || !blob) {
       console.error("Storage download error:", storageError)
-      return NextResponse.json(
-        { error: "File not found in storage" },
-        { status: 404, headers: { "Cache-Control": "no-store" } }
-      )
+      return denied(404, "File not found in storage")
     }
 
     // 8. Return the PDF
-    const filename = storageKey.split("/").pop() || "download.pdf"
+    const filename = storageKey.split("/").pop() || "ebook.pdf"
 
     return new Response(blob, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
-        "Cache-Control": "no-store",
+        "Content-Disposition": `attachment; filename="${filename.replace(/[^\w.\-]/g, "_")}"`,
+        "Content-Length": String(blob.size ?? ""),
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store, no-cache, must-revalidate, private",
+        Pragma: "no-cache",
       },
     })
   } catch (err: any) {
     if (err instanceof Response) {
       return new Response(err.body, {
         status: err.status,
-        headers: { ...Object.fromEntries(err.headers), "Cache-Control": "no-store" },
+        headers: { ...Object.fromEntries(err.headers), ...NO_STORE },
       })
     }
     return NextResponse.json(
       { error: err.message || "Internal server error" },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
+      { status: 500, headers: NO_STORE },
     )
   }
 }

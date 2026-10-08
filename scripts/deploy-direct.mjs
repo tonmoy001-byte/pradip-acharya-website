@@ -9,6 +9,56 @@ const DEFAULT_UPLOAD_CONCURRENCY = 8;
 const MAX_UPLOAD_CONCURRENCY = 32;
 const EXCLUDED_SEGMENTS = new Set(["node_modules", ".git", ".next", "dist", "build", ".insforge"]);
 
+// .env.local is never uploaded (see shouldExcludeDeploymentPath), so every
+// variable the app needs at runtime has to be forwarded explicitly here.
+// Values are read from the local .env.local / process env, never hardcoded.
+const DEPLOY_ENV_KEYS = [
+  "NEXT_PUBLIC_INSFORGE_URL",
+  "NEXT_PUBLIC_INSFORGE_ANON_KEY",
+  "INSFORGE_SERVICE_KEY",
+  "NEXT_PUBLIC_SITE_URL",
+  "RUPANTOR_PAY_API_KEY",
+  "RUPANTOR_PAY_BASE_URL",
+  "GMAIL_USER",
+  "GMAIL_APP_PASSWORD",
+];
+
+let localEnvFile = new Map();
+try {
+  const raw = await fs.readFile(path.join(process.cwd(), ".env.local"), "utf8");
+  for (const line of raw.split(/\r?\n/)) {
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!match) continue;
+    let value = match[2].trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"') && value.length > 1) ||
+      (value.startsWith("'") && value.endsWith("'") && value.length > 1)
+    ) {
+      value = value.slice(1, -1);
+    }
+    localEnvFile.set(match[1], value);
+  }
+} catch {
+  console.warn(".env.local not found; falling back to process.env for deploy env vars.");
+}
+
+function envValue(key) {
+  return process.env[key] ?? localEnvFile.get(key) ?? "";
+}
+
+function buildEnvVars() {
+  const envVars = [];
+  for (const key of DEPLOY_ENV_KEYS) {
+    const value = envValue(key);
+    if (!value) {
+      console.warn("Skipping deploy env var with no local value: " + key);
+      continue;
+    }
+    envVars.push({ key, value });
+  }
+  return envVars;
+}
+
 function shouldExcludeDeploymentPath(normalizedName) {
   const segments = normalizedName.split("/");
   if (segments.some((segment) => segment === ".env" || segment.startsWith(".env."))) return true;
@@ -127,16 +177,12 @@ await runWithConcurrency(createResult.files, uploadConcurrency, async (manifestF
 console.log("Deployment files uploaded. Deployment ID: " + deploymentId);
 console.log("Uploaded " + createResult.files.length + " files through direct deployment proxy.");
 console.log("Starting deployment build...");
+const envVars = buildEnvVars();
+console.log("Forwarding " + envVars.length + "/" + DEPLOY_ENV_KEYS.length + " env vars: " + envVars.map((entry) => entry.key).join(", "));
 const startResult = await api("/api/deployments/" + encodeURIComponent(deploymentId) + "/start", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    envVars: [
-      { key: "RUPANTOR_PAY_API_KEY", value: "5p9CRvX54ZrBckRew9FgoySFDsJKfZEebHJGv5zNyspjEWXr2i" },
-      { key: "RUPANTOR_PAY_BASE_URL", value: "https://payment.rupantorpay.com/api/payment" },
-      { key: "NEXT_PUBLIC_SITE_URL", value: "https://cpd9mnqf.insforge.site" },
-    ],
-  }),
+  body: JSON.stringify({ envVars }),
 });
 console.log("Deployment build started:", JSON.stringify(startResult));
 console.log("DEPLOYMENT_ID=" + deploymentId);

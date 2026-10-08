@@ -8,7 +8,7 @@ interface DashboardData {
   totalOrders: number
   paidOrders: number
   totalRevenue: number
-  pendingDeliveries: number
+  pendingDownloads: number
   totalBooks: number
   totalPosts: number
   totalCustomers: number
@@ -89,6 +89,10 @@ export default function AdminDashboard() {
         <div className="admin-stat-card">
           <div className="admin-stat-label">মোট গ্রাহক</div>
           <div className="admin-stat-value">{data.totalCustomers}</div>
+        </div>
+        <div className="admin-stat-card">
+          <div className="admin-stat-label">ডাউনলোড অনুমোদন বাকি</div>
+          <div className="admin-stat-value">{data.pendingDownloads}</div>
         </div>
       </div>
 

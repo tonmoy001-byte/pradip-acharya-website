@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
 import { sanitizePostgREST } from "@/lib/sanitize"
+import { invalidatePosts } from "@/lib/public-cache"
 
 export async function GET(req: Request) {
   try {
@@ -73,6 +74,7 @@ export async function POST(req: Request) {
         .eq("id", postId)
     }
 
+    invalidatePosts(body.slug)
     return NextResponse.json({ post_id: postId })
   } catch (err: any) {
     if (err instanceof Response) return err

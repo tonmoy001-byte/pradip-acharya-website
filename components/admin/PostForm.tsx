@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import Image from "next/image"
 import { resolveCoverImage } from "@/lib/api"
 
 interface PostFormProps {
@@ -175,7 +174,11 @@ export default function PostForm({ initial, mode }: PostFormProps) {
           <div style={{ display: "flex", gap: "var(--sp-4)", alignItems: "flex-start" }}>
             {coverImage && (
               <div style={{ position: "relative", width: 160, height: 90 }}>
-                <Image src={resolveCoverImage(coverImage)} alt="Cover" fill style={{ objectFit: "cover", borderRadius: 4 }} />
+                <img
+                  src={resolveCoverImage(coverImage)}
+                  alt="Cover"
+                  style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", borderRadius: 4 }}
+                />
               </div>
             )}
             <div style={{ flex: 1 }}>

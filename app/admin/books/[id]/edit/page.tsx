@@ -5,21 +5,10 @@ import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import BookForm from "@/components/admin/BookForm"
 
-interface BookFormatInput {
-  name: string
-  price: string
-  compareAtPrice: string
-  delivery_type: string
-  available: boolean
-}
-
 interface BookData {
   id: string
   title: string
   author: string
-  category: string
-  subcategory: string
-  subcategory_slug: string
   description: string
   synopsis: string
   cover_primary: string | null
@@ -85,6 +74,10 @@ export default function AdminBookEditPage() {
     )
   }
 
+  // The ebook is the only editable product. Any legacy physical row is
+  // preserved server-side and stays invisible here.
+  const ebook = book.book_formats.find((f) => f.delivery_type === "digital")
+
   return (
     <div className="admin-page">
       <div className="admin-page-header">
@@ -106,9 +99,6 @@ export default function AdminBookEditPage() {
           id: book.id,
           title: book.title,
           author: book.author,
-          category: book.category,
-          subcategory: book.subcategory,
-          subcategory_slug: book.subcategory_slug,
           description: book.description,
           synopsis: book.synopsis,
           cover_primary: book.cover_primary,
@@ -122,14 +112,10 @@ export default function AdminBookEditPage() {
           isbn: book.isbn,
           pages: book.pages,
           language: book.language,
-          formats: book.book_formats.map((f) => ({
-            name: f.format_name,
-            price: String(f.price),
-            compareAtPrice: f.compare_at_price ? String(f.compare_at_price) : "",
-            delivery_type: f.delivery_type,
-            available: f.available,
-            storageKey: f.storage_key || null,
-          })),
+          price: ebook ? String(ebook.price) : "",
+          compareAtPrice: ebook?.compare_at_price ? String(ebook.compare_at_price) : "",
+          available: ebook ? ebook.available : false,
+          storageKey: ebook?.storage_key ?? null,
         }}
       />
     </div>

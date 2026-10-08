@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import Link from "next/link"
+import SeoNoindex from "@/components/SeoNoindex"
 
 export default function LoginPage() {
   const [tab, setTab] = useState<"signin" | "signup">("signin")
@@ -72,7 +73,40 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="container section-padding" style={{ maxWidth: 480, marginInline: "auto" }}>
+    <div className="container section-padding auth-shell" style={{ maxWidth: 480, marginInline: "auto" }}>
+      <SeoNoindex />
+      {/* The book's premise in one gesture: a blossom torn loose, falling, and
+          settling. Decorative only — no pointer events, hidden from assistive
+          tech, and motionless under prefers-reduced-motion. */}
+      <div className="auth-petal" aria-hidden="true">
+        <div className="auth-petal__fall">
+          <div className="auth-petal__sway">
+            <svg viewBox="0 0 60 72" width="60" height="72" focusable="false">
+              <defs>
+                <linearGradient id="petalFill" x1="0" y1="1" x2="0.6" y2="0">
+                  <stop offset="0" stopColor="#b8827a" />
+                  <stop offset="0.55" stopColor="#c4704b" />
+                  <stop offset="1" stopColor="#a85c3a" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M30 71 C17 63 10 43 24 25 C29 18 35 18 40 25 C54 43 43 63 30 71 Z"
+                fill="url(#petalFill)"
+              />
+              <path
+                d="M30 70 C30 52 32 38 36 26"
+                fill="none"
+                stroke="#8f5a3f"
+                strokeOpacity="0.45"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+        </div>
+        <span className="auth-petal__shadow" />
+      </div>
+
       <div className="page-header">
         <h1>অ্যাকাউন্ট</h1>
       </div>

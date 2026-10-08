@@ -1,32 +1,27 @@
 import Link from "next/link"
-import type { Metadata } from "next"
+import { getCachedPublishedPosts } from "@/lib/public-cache"
+import { pageMetadata } from "@/lib/seo"
+import { breadcrumbList } from "@/lib/structured-data"
+import JsonLd from "@/components/JsonLd"
 
-export const dynamic = "force-dynamic"
-
-export const metadata: Metadata = {
+export const metadata = pageMetadata({
   title: "ব্লগ — প্রদীপ কুমার আচার্য্য",
-  description: "প্রদীপ কুমার আচার্য্যের ব্লগ ও লেখালেখি।",
-}
-
-async function getPosts() {
-  try {
-    const base = process.env.NEXT_PUBLIC_INSFORGE_URL!
-    const key = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
-    const res = await fetch(`${base}/rest/v1/posts?status=eq.published&order=published_at.desc`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` },
-      next: { revalidate: 60 },
-    })
-    return res.ok ? await res.json() : []
-  } catch {
-    return []
-  }
-}
+  description:
+    "প্রদীপ কুমার আচার্য্যের ব্লগ, লেখালেখি ও বাংলা সাহিত্য নিয়ে ভাবনা। বাংলা উপন্যাস, গল্প ও লেখকের সৃজনশীল জীবন সম্পর্কে সব লেখা এক জায়গায়।",
+  path: "/blog",
+})
 
 export default async function BlogPage() {
-  const posts = await getPosts()
+  const posts = await getCachedPublishedPosts()
 
   return (
     <main style={{ minHeight: "100vh", paddingTop: "var(--sp-16)" }}>
+      <JsonLd
+        data={breadcrumbList([
+          { name: "হোম", path: "/" },
+          { name: "ব্লগ", path: "/blog" },
+        ])}
+      />
       <div className="container" style={{ maxWidth: 800, margin: "0 auto" }}>
         <h1 style={{ marginBottom: "var(--sp-2)" }}>ব্লগ</h1>
         <p style={{ color: "var(--ink-muted)", marginBottom: "var(--sp-8)", fontSize: "1.0625rem" }}>

@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import Link from "next/link"
+import SeoNoindex from "@/components/SeoNoindex"
 
 export default function VerifyPage() {
   const router = useRouter()
@@ -137,6 +138,7 @@ export default function VerifyPage() {
 
   return (
     <div className="container section-padding" style={{ maxWidth: 480, marginInline: "auto" }}>
+      <SeoNoindex />
       <div className="page-header">
         <h1>ইমেইল যাচাই করুন</h1>
         <p>আপনার ইমেইলে প্রেরিত ৬ অংকের কোড প্রবেশ করুন</p>

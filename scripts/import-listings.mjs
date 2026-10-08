@@ -213,13 +213,22 @@ async function main() {
       console.warn(`  ⚠ No images found, using placeholder`)
     }
 
-    // Build formats
-    const formats = formatRows.map((r) => ({
-      name: r.format || "Paperback",
-      price: Number(r.price) || 0,
-      compareAtPrice: r.compareAtPrice ? Number(r.compareAtPrice) : undefined,
-      available: true,
-    }))
+    // Ebook-only store: one digital format per title, priced from the
+    // cheapest source row. Paperbook rows are intentionally not imported.
+    const cheapest = formatRows.reduce(
+      (min, r) => (Number(r.price) < Number(min.price) ? r : min),
+      formatRows[0],
+    )
+
+    const formats = [
+      {
+        name: "eBook",
+        price: Number(cheapest.price) || 0,
+        compareAtPrice: cheapest.compareAtPrice ? Number(cheapest.compareAtPrice) : undefined,
+        delivery_type: "digital",
+        available: true,
+      },
+    ]
 
     const book = {
       id,

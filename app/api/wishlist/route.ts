@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await client.database
       .from("wishlists")
-      .select("*, books(id, title, author, cover_primary, book_formats(format_name, price))")
+      .select("*, books(id, title, author, cover_primary, book_formats(format_name, price, delivery_type, available))")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
 

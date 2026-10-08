@@ -5,9 +5,6 @@ import Link from "next/link"
 import { useAuth } from "@/lib/auth"
 import { money } from "@/lib/format"
 import { resolveCoverImage } from "@/lib/api"
-import { useCart } from "@/lib/store"
-import { useToast } from "@/components/Toast"
-import type { BookFormatName } from "@/lib/data"
 
 interface WishlistItem {
   id: string
@@ -18,14 +15,12 @@ interface WishlistItem {
     title: string
     author: string
     cover_primary: string | null
-    book_formats: { format_name: string; price: number }[]
+    book_formats: { format_name: string; price: number; delivery_type: string; available: boolean }[]
   } | null
 }
 
 export default function AccountWishlistPage() {
   const { user, loading: authLoading } = useAuth()
-  const { addToCart } = useCart()
-  const { showToast } = useToast()
   const [items, setItems] = useState<WishlistItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
@@ -81,23 +76,16 @@ export default function AccountWishlistPage() {
     }
   }
 
-  function handleAddToCart(item: WishlistItem) {
-    if (!item.books) return
-
-    const formats = item.books.book_formats || []
-    const firstFormat = formats[0]
-    const formatName = (firstFormat?.format_name || "Paperback") as BookFormatName
-    const price = firstFormat?.price || 0
-
-    addToCart({
-      bookId: item.books.id,
-      title: item.books.title,
-      author: item.books.author,
-      price,
-      format: formatName,
-      image: resolveCoverImage(item.books.cover_primary),
-    })
-    showToast(`${item.books.title} কার্টে যোগ হয়েছে`)
+  /**
+   * Ebook-only: a wishlist entry is buyable when the book has an available
+   * digital format. Buying goes straight to checkout — nothing is carted.
+   */
+  function isEbookAvailable(item: WishlistItem): boolean {
+    if (!item.books) return false
+    const ebook = (item.books.book_formats || []).find(
+      (f) => f.delivery_type === "digital",
+    )
+    return Boolean(ebook?.available)
   }
 
   if (authLoading || loading) {
@@ -247,19 +235,46 @@ export default function AccountWishlistPage() {
                         marginBottom: "var(--sp-4)",
                       }}
                     >
-                      {money(book.book_formats?.[0]?.price || 0)}
+                      {money(
+                        (book.book_formats || []).find((f) => f.delivery_type === "digital")
+                          ?.price || 0,
+                      )}
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          fontFamily: "var(--font-body)",
+                          fontWeight: 400,
+                          color: "var(--stone)",
+                          marginLeft: "var(--sp-2)",
+                        }}
+                      >
+                        (ইবুক)
+                      </span>
                     </p>
                   </div>
 
                   {/* Actions */}
                   <div style={{ display: "flex", gap: "var(--sp-2)" }}>
-                    <button
-                      onClick={() => handleAddToCart(item)}
+                    <Link
+                      href={
+                        isEbookAvailable(item)
+                          ? `/checkout?book=${encodeURIComponent(item.books!.id)}`
+                          : "#"
+                      }
+                      onClick={(e) => {
+                        if (!isEbookAvailable(item)) e.preventDefault()
+                      }}
                       className="btn btn-primary"
-                      style={{ flex: 1, fontSize: "0.8125rem", padding: "var(--sp-2) var(--sp-3)" }}
+                      style={{
+                        flex: 1,
+                        fontSize: "0.8125rem",
+                        padding: "var(--sp-2) var(--sp-3)",
+                        textAlign: "center",
+                        opacity: isEbookAvailable(item) ? 1 : 0.6,
+                      }}
                     >
-                      কার্টে যোগ করুন
-                    </button>
+                      ইবুক কিনুন
+                    </Link>
                     <button
                       onClick={() => handleRemove(item)}
                       disabled={removingId === item.id}

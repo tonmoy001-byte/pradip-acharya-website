@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth"
 import { money } from "@/lib/format"
+import SeoNoindex from "@/components/SeoNoindex"
 
 interface OrderItem {
   id: string
@@ -16,10 +17,15 @@ interface OrderItem {
   line_total: number
 }
 
+interface DownloadGrant {
+  id: string
+  order_item_id: string
+  revoked_at: string | null
+}
+
 interface Order {
   id: string
   payment_status: string
-  fulfillment_status: string
   subtotal: number
   delivery_charge: number
   total: number
@@ -27,11 +33,11 @@ interface Order {
   created_at: string
   paid_at: string | null
   items: OrderItem[]
+  download_grants?: DownloadGrant[]
 }
 
 function paymentBadgeClass(status: string) {
   if (status === "paid") return "badge-green"
-  if (status === "pending_payment") return ""
   return ""
 }
 
@@ -49,30 +55,22 @@ function paymentBadgeColor(status: string) {
 
 function paymentLabel(s: string) {
   const map: Record<string, string> = {
-    pending_payment: "অপেক্ষমান",
-    payment_review: "পর্যালোচনাধীন",
+    pending_payment: "পেমেন্ট বাকি",
+    pending_verification: "পর্যালোচনাধীন",
     paid: "পরিশোধিত",
     refunded: "ফেরত দেওয়া হয়েছে",
   }
   return map[s] || s
 }
 
-function fulfillmentLabel(s: string) {
-  const map: Record<string, string> = {
-    not_applicable: "প্রযোজ্য নয়",
-    pending: "অপেক্ষমান",
-    processing: "প্রক্রিয়াকরণ",
-    shipped: "পাঠানো হয়েছে",
-    delivered: "ডেলিভারি সম্পন্ন",
-    returned: "ফেরত",
+function downloadLabel(order: Order) {
+  const isPaid = order.payment_status === "paid"
+  if (!isPaid) return { text: "পেমেন্ট বাকি", bg: "rgba(107, 114, 128, 0.08)", color: "#374151" }
+  const hasGrant = (order.download_grants || []).some((g) => !g.revoked_at)
+  if (hasGrant) {
+    return { text: "ডাউনলোড উপলব্ধ", bg: "rgba(74, 103, 65, 0.1)", color: "var(--green)" }
   }
-  return map[s] || s
-}
-
-function fulfillmentBadgeStyle(status: string): React.CSSProperties {
-  if (status === "delivered") return { background: "rgba(74, 103, 65, 0.1)", color: "var(--green)" }
-  if (status === "shipped") return { background: "rgba(59, 130, 246, 0.1)", color: "#1d4ed8" }
-  return { background: "rgba(107, 114, 128, 0.08)", color: "#374151" }
+  return { text: "অনুমোদনের অপেক্ষায়", bg: "rgba(202, 138, 4, 0.1)", color: "#92400e" }
 }
 
 export default function AccountOrdersPage() {
@@ -86,15 +84,33 @@ export default function AccountOrdersPage() {
 
     async function fetchOrders() {
       try {
-        const res = await fetch("/api/my-orders", { credentials: "include" })
-        const data = await res.json()
+        const [ordersRes, downloadsRes] = await Promise.allSettled([
+          fetch("/api/my-orders", { credentials: "include" }),
+          fetch("/api/my-downloads", { credentials: "include" }),
+        ])
 
-        if (!res.ok) {
-          setError(data.error || "অর্ডার লোড করা যায়নি")
+        if (ordersRes.status !== "fulfilled" || !ordersRes.value.ok) {
+          setError("অর্ডার লোড করা যায়নি")
           return
         }
 
-        setOrders(data.data || [])
+        const { data } = await ordersRes.value.json()
+        const list: Order[] = data || []
+
+        // Attach grant state so the list can show download availability.
+        if (downloadsRes.status === "fulfilled" && downloadsRes.value.ok) {
+          const downloads = await downloadsRes.value.json()
+          const grantOrderIds = new Set<string>(
+            (downloads.data || []).map((g: any) => g.order_id as string),
+          )
+          for (const order of list) {
+            if (grantOrderIds.has(order.id)) {
+              order.download_grants = [{ id: "x", order_item_id: "x", revoked_at: null }]
+            }
+          }
+        }
+
+        setOrders(list)
       } catch {
         setError("অর্ডার লোড করা যায়নি")
       } finally {
@@ -108,6 +124,7 @@ export default function AccountOrdersPage() {
   if (authLoading || loading) {
     return (
       <div>
+        <SeoNoindex />
         <div className="page-header">
           <h1>আমার অর্ডার</h1>
         </div>
@@ -123,6 +140,7 @@ export default function AccountOrdersPage() {
   if (error) {
     return (
       <div>
+        <SeoNoindex />
         <div className="page-header">
           <h1>আমার অর্ডার</h1>
         </div>
@@ -145,10 +163,11 @@ export default function AccountOrdersPage() {
 
   return (
     <div>
+      <SeoNoindex />
       <div className="page-header" style={{ paddingBottom: "var(--sp-4)" }}>
         <h1>আমার অর্ডার</h1>
         <p style={{ color: "var(--ink-muted)", marginTop: "var(--sp-2)" }}>
-          আপনার সকল অর্ডারের তালিকা
+          আপনার অর্ডারের তালিকা
         </p>
       </div>
 
@@ -180,146 +199,164 @@ export default function AccountOrdersPage() {
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
-          {orders.map((order) => (
-            <div
-              key={order.id}
-              className="card"
-              style={{ padding: "var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}
-            >
-              {/* Order Header */}
+          {orders.map((order) => {
+            const download = downloadLabel(order)
+            return (
               <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "flex-start",
-                  flexWrap: "wrap",
-                  gap: "var(--sp-3)",
-                }}
+                key={order.id}
+                className="card"
+                style={{ padding: "var(--sp-5)", display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}
               >
-                <div>
-                  <p style={{ fontWeight: 600, fontSize: "0.9375rem", fontFamily: "var(--font-body)" }}>
-                    অর্ডার #{order.id.slice(0, 8)}
-                  </p>
-                  <p style={{ fontSize: "0.8125rem", color: "var(--stone)", marginTop: "var(--sp-1)" }}>
-                    {new Date(order.created_at).toLocaleDateString("bn-BD", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </p>
-                </div>
-                <div style={{ display: "flex", gap: "var(--sp-2)", flexWrap: "wrap" }}>
-                  <span
-                    className={`badge ${paymentBadgeClass(order.payment_status)}`}
-                    style={{
-                      background: paymentBadgeBg(order.payment_status),
-                      color: paymentBadgeColor(order.payment_status),
-                    }}
-                  >
-                    {paymentLabel(order.payment_status)}
-                  </span>
-                  <span className="badge" style={fulfillmentBadgeStyle(order.fulfillment_status)}>
-                    {fulfillmentLabel(order.fulfillment_status)}
-                  </span>
-                </div>
-              </div>
-
-              {/* Items */}
-              <div style={{ borderTop: "1px solid var(--border)", paddingTop: "var(--sp-3)" }}>
-                {order.items && order.items.length > 0 ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
-                    {order.items.slice(0, 3).map((item) => (
-                      <div
-                        key={item.id}
-                        style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}
-                      >
-                        {item.cover_image_snapshot ? (
-                          <img
-                            src={item.cover_image_snapshot}
-                            alt={item.title_snapshot}
-                            style={{
-                              width: 40,
-                              height: 56,
-                              objectFit: "cover",
-                              borderRadius: "var(--radius-sm)",
-                              flexShrink: 0,
-                            }}
-                          />
-                        ) : (
-                          <div
-                            style={{
-                              width: 40,
-                              height: 56,
-                              borderRadius: "var(--radius-sm)",
-                              background: "var(--stone)",
-                              opacity: 0.15,
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p
-                            style={{
-                              fontSize: "0.875rem",
-                              fontWeight: 500,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {item.title_snapshot}
-                          </p>
-                          <p style={{ fontSize: "0.75rem", color: "var(--stone)" }}>
-                            {item.format_snapshot} × {item.quantity}
-                          </p>
-                        </div>
-                        <p style={{ fontSize: "0.875rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                          {money(item.line_total)}
-                        </p>
-                      </div>
-                    ))}
-                    {order.items.length > 3 && (
-                      <p style={{ fontSize: "0.75rem", color: "var(--stone)" }}>
-                        এবং আরো {order.items.length - 3}টি আইটেম...
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <p style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>
-                    আইটেম তথ্য পাওয়া যায়নি
-                  </p>
-                )}
-              </div>
-
-              {/* Footer: Total + Link */}
-              <div
-                style={{
-                  borderTop: "1px solid var(--border)",
-                  paddingTop: "var(--sp-3)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: "var(--sp-2)",
-                }}
-              >
-                <p style={{ fontSize: "0.9375rem", fontWeight: 600 }}>
-                  মোট: {money(order.total)}
-                </p>
-                <Link
-                  href={`/account/orders/${order.id}`}
+                {/* Order Header */}
+                <div
                   style={{
-                    fontSize: "0.875rem",
-                    color: "var(--terracotta)",
-                    fontWeight: 500,
-                    textDecoration: "none",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    flexWrap: "wrap",
+                    gap: "var(--sp-3)",
                   }}
                 >
-                  বিস্তারিত দেখুন →
-                </Link>
+                  <div>
+                    <p style={{ fontWeight: 600, fontSize: "0.9375rem", fontFamily: "var(--font-body)" }}>
+                      অর্ডার #{order.id.slice(0, 8)}
+                    </p>
+                    <p style={{ fontSize: "0.8125rem", color: "var(--stone)", marginTop: "var(--sp-1)" }}>
+                      {new Date(order.created_at).toLocaleDateString("bn-BD", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: "var(--sp-2)", flexWrap: "wrap" }}>
+                    <span
+                      className={`badge ${paymentBadgeClass(order.payment_status)}`}
+                      style={{
+                        background: paymentBadgeBg(order.payment_status),
+                        color: paymentBadgeColor(order.payment_status),
+                      }}
+                    >
+                      {paymentLabel(order.payment_status)}
+                    </span>
+                    <span className="badge" style={{ background: download.bg, color: download.color }}>
+                      {download.text}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Items */}
+                <div style={{ borderTop: "1px solid var(--border)", paddingTop: "var(--sp-3)" }}>
+                  {order.items && order.items.length > 0 ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-3)" }}>
+                      {order.items.slice(0, 3).map((item) => (
+                        <div
+                          key={item.id}
+                          style={{ display: "flex", alignItems: "center", gap: "var(--sp-3)" }}
+                        >
+                          {item.cover_image_snapshot ? (
+                            <img
+                              src={item.cover_image_snapshot}
+                              alt={item.title_snapshot}
+                              style={{
+                                width: 40,
+                                height: 56,
+                                objectFit: "cover",
+                                borderRadius: "var(--radius-sm)",
+                                flexShrink: 0,
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: 40,
+                                height: 56,
+                                borderRadius: "var(--radius-sm)",
+                                background: "var(--stone)",
+                                opacity: 0.15,
+                                flexShrink: 0,
+                              }}
+                            />
+                          )}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p
+                              style={{
+                                fontSize: "0.875rem",
+                                fontWeight: 500,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {item.title_snapshot}
+                            </p>
+                            <p style={{ fontSize: "0.75rem", color: "var(--stone)" }}>
+                              ডিজিটাল ইবুক (PDF) × {item.quantity}
+                            </p>
+                          </div>
+                          <p style={{ fontSize: "0.875rem", fontWeight: 600, whiteSpace: "nowrap" }}>
+                            {money(item.line_total)}
+                          </p>
+                        </div>
+                      ))}
+                      {order.items.length > 3 && (
+                        <p style={{ fontSize: "0.75rem", color: "var(--stone)" }}>
+                          এবং আরো {order.items.length - 3}টি আইটেম...
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>
+                      আইটেম তথ্য পাওয়া যায়নি
+                    </p>
+                  )}
+                </div>
+
+                {/* Footer: Total + Link */}
+                <div
+                  style={{
+                    borderTop: "1px solid var(--border)",
+                    paddingTop: "var(--sp-3)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: "var(--sp-2)",
+                  }}
+                >
+                  <p style={{ fontSize: "0.9375rem", fontWeight: 600 }}>
+                    মোট: {money(order.total)}
+                  </p>
+                  <div style={{ display: "flex", gap: "var(--sp-4)", alignItems: "center", flexWrap: "wrap" }}>
+                    {order.download_grants && order.download_grants.length > 0 && (
+                      <Link
+                        href="/my-downloads"
+                        style={{
+                          fontSize: "0.875rem",
+                          color: "var(--terracotta)",
+                          fontWeight: 500,
+                          textDecoration: "none",
+                        }}
+                      >
+                        ডাউনলোড →
+                      </Link>
+                    )}
+                    <Link
+                      href={`/account/orders/${order.id}`}
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "var(--terracotta)",
+                        fontWeight: 500,
+                        textDecoration: "none",
+                      }}
+                    >
+                      বিস্তারিত দেখুন →
+                    </Link>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>

@@ -1,56 +1,92 @@
-import Link from "next/link"
-import { getFeatured, getNewReleases, getTrending } from "@/lib/api"
-import { CATEGORIES } from "@/lib/data"
-import Hero from "@/components/Hero"
+﻿import Link from "next/link"
+import { getCachedFeatured, getCachedNewReleases, getCachedTrending, getCachedSiteSettings } from "@/lib/public-cache"
+import Hero, { HeroBook } from "@/components/Hero"
 import BookGrid from "@/components/BookGrid"
+import BookExcerpt from "@/components/BookExcerpt"
 import ScrollReveal from "@/components/ScrollReveal"
+import type { Book } from "@/lib/data"
+import { AUTHOR_OG_IMAGE, pageMetadata } from "@/lib/seo"
+import { websiteGraph } from "@/lib/structured-data"
+import JsonLd from "@/components/JsonLd"
 
-export const dynamic = "force-dynamic"
+// The root "/" page would otherwise inherit only the title template, leaving it
+// with no canonical of its own. pageMetadata supplies the self-referencing
+// canonical, og:url and og:image that the homepage needs to be linkable.
+export const metadata = pageMetadata({
+  title: "ছেঁড়া পুষ্প — প্রদীপ কুমার আচার্য্যের বাংলা সামাজিক উপন্যাস",
+  description:
+    "প্রদীপ কুমার আচার্য্যের বাংলা সামাজিক উপন্যাস “ছেঁড়া পুষ্প” ডিজিটাল ইবুক (PDF) আকারে পড়ুন। bKash, Nagad, Rocket ও কার্ডে পেমেন্ট করে সঙ্গে সঙ্গে ডাউনলোড করুন।",
+  path: "/",
+  image: AUTHOR_OG_IMAGE,
+})
 
-async function getSettings() {
-  try {
-    const base = process.env.NEXT_PUBLIC_INSFORGE_URL!
-    const key = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY!
-    const res = await fetch(`${base}/rest/v1/rpc/get_site_settings`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${key}` },
-      body: "{}",
-      next: { revalidate: 60 },
-    })
-    return res.ok ? await res.json() : {}
-  } catch {
-    return {}
+/** Featured + new + trending, de-duplicated, catalog order preserved. */
+function mergeFeaturedBooks(...groups: Book[][]): Book[] {
+  const seen = new Set<string>()
+  const merged: Book[] = []
+  for (const group of groups) {
+    for (const book of group) {
+      if (seen.has(book.id)) continue
+      seen.add(book.id)
+      merged.push(book)
+    }
   }
+  return merged
 }
 
 export default async function HomePage() {
   const [featured, newReleases, trending, settings] = await Promise.all([
-    getFeatured(),
-    getNewReleases(),
-    getTrending(),
-    getSettings(),
+    getCachedFeatured(),
+    getCachedNewReleases(),
+    getCachedTrending(),
+    getCachedSiteSettings(),
   ])
 
-  const heroTitle = settings.hero_title || "বাংলা সাহিত্যের নতুন অধ্যায়"
-  const heroSubtitle = settings.hero_subtitle || "প্রদীপ কুমার আচার্য্যের সাহিত্যকর্মে জীবনের গভীরতা ও মানবিক অনুভূতি"
-  const promoText = settings.promo_banner_text || "৭৫০ টাকার বেশি অর্ডারে বিনামূল্যে ডেলিভারি। এখনই অর্ডার করুন।"
+  const heroBook = featured[0]
+  const promoText = settings.promo_banner_text || "সব বই ডিজিটাল ইবুক (PDF) আকারে। এখনই অর্ডার করুন।"
   const footerText = settings.footer_text || ""
+  const spotlightBooks = mergeFeaturedBooks(featured, newReleases, trending)
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "WebSite",
-            name: settings.site_name || "প্রদীপ কুমার আচার্য্য",
-            description: settings.site_tagline || "বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস।",
-            url: "/",
-          }),
-        }}
+      <JsonLd data={websiteGraph({
+        siteName: settings.site_name || "প্রদীপ কুমার আচার্য্য",
+        tagline:
+          settings.site_tagline ||
+          "লেখক প্রদীপ কুমার আচার্য্যের বাংলা সামাজিক উপন্যাস “ছেঁড়া পুষ্প” — ডিজিটাল ইবুক।",
+      })} />
+      <Hero
+        title={heroBook?.title}
+        author={heroBook?.author}
+        subtitle={
+          settings.hero_subtitle ||
+          "বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস। স্মৃতি ও বর্তমানের এক অনন্য মিলন।"
+        }
       />
-      <Hero title={heroTitle} subtitle={heroSubtitle} />
+
+      {/* The book itself, directly below the video */}
+      <HeroBook
+        title={heroBook?.title}
+        author={heroBook?.author}
+        subtitle={
+          settings.hero_subtitle ||
+          "বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস। স্মৃতি ও বর্তমানের এক অনন্য মিলন।"
+        }
+        price={heroBook?.ebook.price}
+        cover={heroBook?.images.primary}
+        slug={heroBook?.id}
+        available={heroBook?.ebook.available}
+      />
+
+      {/* A few lines from the book, directly beneath the book itself */}
+      <BookExcerpt
+        slug={heroBook?.id ?? "chhera-pushpo"}
+        teaser={[
+          "মানুষ সামাজিক জীব। প্রতিটি সমাজে, পরিবারে বিভিন্ন রীতিনীতি প্রচলিত। শিক্ষার প্রসারে মানুষের ন্যায়-অন্যায় বোঝার ক্ষমতা বাড়লেও খুন, ধর্ষণ, সন্ত্রাস, ধর্মান্ধতা আর ঘুষ-কেলেঙ্কারী থেকে আমরা এখনো মুক্ত নই।",
+          "এত কিছুর মাঝেও মানুষের আশার আলো নিভে যায় না। বাবা-মায়েরা তাদের সন্তানকে প্রতিষ্ঠিত করতে সাধ্যমতো চেষ্টা করেন। কিন্তু সন্তান যখন মাঝপথে নষ্ট হয়ে যায়, তখন দুঃখের সীমা থাকে না।",
+          "“ছেঁড়া পুষ্প” একটি সামাজিক উপন্যাস — বাস্তব ও কাল্পনিক কাহিনীর সমন্বয়ে রচিত। প্রধান নায়ক তুহিন মেধাবী ছাত্র। শিক্ষাজীবন শেষ হওয়ার আগেই তার জীবনে ভাঙন নেমে আসে...",
+        ]}
+      />
 
       {/* Author Intro */}
       <section className="section-padding">
@@ -71,99 +107,14 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* Featured Highlight */}
-      <section className="section-padding" style={{ background: "var(--bg-alt)" }}>
-        <div className="container">
-          <ScrollReveal>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--sp-12)", alignItems: "center" }}>
-              <div>
-                <span className="badge badge-terracotta" style={{ marginBottom: "var(--sp-4)" }}>বিশেষ প্রকাশনা</span>
-                <h1 style={{ marginBottom: "var(--sp-4)" }}>ছেঁড়া পুষ্প</h1>
-                <p style={{ fontSize: "1.0625rem", marginBottom: "var(--sp-4)" }}>
-                  প্রদীপ কুমার আচার্য্যের এই উপন্যাসে স্মৃতি ও বর্তমানের এক অনন্য
-                  মিলন ঘটেছে। একটি মানুষের জীবনের ছেঁড়া পুষ্পগুলো কীভাবে নতুন
-                  করে ফোটে — তারই গল্প।
-                </p>
-                <div style={{ display: "flex", gap: "var(--sp-4)" }}>
-                  <Link href="/book/chhera-pushpo" className="btn btn-primary">
-                    এখনই কিনুন
-                  </Link>
-                  <Link href="/novels" className="btn btn-secondary">
-                    সকল উপন্যাস
-                  </Link>
-                </div>
-              </div>
-              <div>
-                <img
-                  src="https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=900&q=80"
-                  alt="ছেঁড়া পুষ্প"
-                  width={900}
-                  height={600}
-                  style={{ width: "100%", height: "auto", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)" }}
-                />
-              </div>
-            </div>
-          </ScrollReveal>
-        </div>
-      </section>
-
-      {/* Category Cards */}
-      <section className="section-padding">
-        <div className="container">
-          <ScrollReveal>
-            <h2 style={{ textAlign: "center", marginBottom: "var(--sp-8)" }}>বইয়ের ধরন</h2>
-          </ScrollReveal>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: "var(--sp-6)" }}>
-            {CATEGORIES.map((cat) => (
-              <ScrollReveal key={cat.slug}>
-                <Link
-                  href={`/${cat.slug === "novels" ? "novels" : "books"}`}
-                  className="card"
-                  style={{ padding: "var(--sp-8)", textAlign: "center" }}
-                >
-                  <h3 style={{ marginBottom: "var(--sp-2)" }}>{cat.label}</h3>
-                  <p style={{ fontSize: "0.875rem", color: "var(--stone)" }}>
-                    {cat.category === "novels" ? "উপন্যাস সংকলন" : "সাহিত্য বই সংকলন"}
-                  </p>
-                </Link>
-              </ScrollReveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Books */}
-      {featured.length > 0 && (
+      {/* বিশেষ ফিচার্ড বই — featured + new releases + trending, merged */}
+      {spotlightBooks.length > 0 && (
         <section className="section-padding" style={{ background: "var(--bg-alt)" }}>
           <div className="container">
             <ScrollReveal>
-              <h2 style={{ textAlign: "center", marginBottom: "var(--sp-8)" }}>বিশেষ সংকলন</h2>
+              <h2 style={{ textAlign: "center", marginBottom: "var(--sp-8)" }}>বিশেষ ফিচার্ড বই</h2>
             </ScrollReveal>
-            <BookGrid books={featured} />
-          </div>
-        </section>
-      )}
-
-      {/* New Releases */}
-      {newReleases.length > 0 && (
-        <section className="section-padding">
-          <div className="container">
-            <ScrollReveal>
-              <h2 style={{ textAlign: "center", marginBottom: "var(--sp-8)" }}>নতুন প্রকাশনা</h2>
-            </ScrollReveal>
-            <BookGrid books={newReleases} />
-          </div>
-        </section>
-      )}
-
-      {/* Trending */}
-      {trending.length > 0 && (
-        <section className="section-padding" style={{ background: "var(--bg-alt)" }}>
-          <div className="container">
-            <ScrollReveal>
-              <h2 style={{ textAlign: "center", marginBottom: "var(--sp-8)" }}>জনপ্রিয়</h2>
-            </ScrollReveal>
-            <BookGrid books={trending} />
+            <BookGrid books={spotlightBooks} />
           </div>
         </section>
       )}

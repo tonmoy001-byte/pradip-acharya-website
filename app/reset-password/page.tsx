@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { resetPassword } from "@/app/actions/auth"
 import Link from "next/link"
+import SeoNoindex from "@/components/SeoNoindex"
 
 export default function ResetPasswordPage() {
   const router = useRouter()
@@ -84,6 +85,7 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="container section-padding" style={{ maxWidth: 480, marginInline: "auto" }}>
+      <SeoNoindex />
       <div className="page-header">
         <h1>নতুন পাসওয়ার্ড সেট করুন</h1>
       </div>

@@ -6,12 +6,18 @@ import {
   Inter,
 } from "next/font/google"
 import "./globals.css"
-import { CartProvider } from "@/lib/store"
 import { ToastProvider } from "@/components/Toast"
 import { AuthProvider } from "@/lib/auth"
 import Navbar from "@/components/Navbar"
 import Footer from "@/components/Footer"
 import AnnouncementBar from "@/components/AnnouncementBar"
+import {
+  absoluteUrl,
+  DEFAULT_OG_IMAGE,
+  SITE_LOCALE,
+  SITE_NAME,
+  SITE_URL,
+} from "@/lib/seo"
 
 const notoSerifBengali = Noto_Serif_Bengali({
   subsets: ["bengali"],
@@ -38,16 +44,41 @@ const inter = Inter({
 })
 
 export const metadata: Metadata = {
-  title: "প্রদীপ কুমার আচার্য্য - ছেঁড়া পুষ্প | বাংলা সাহিত্য",
-  description:
-    "প্রদীপ কুমার আচার্য্যের ছেঁড়া পুষ্প — বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস।",
-  openGraph: {
-    title: "প্রদীপ কুমার আচার্য্য - ছেঁড়া পুষ্প",
-    description: "বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস।",
-    siteName: "প্রদীপ কুমার আচার্য্য",
-    locale: "bn_BD",
-    type: "website",
+  // Required so every relative canonical / OG URL resolves to absolute HTTPS.
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: "প্রদীপ কুমার আচার্য্য | ছেঁড়া পুষ্প বাংলা উপন্যাস",
+    template: "%s | প্রদীপ কুমার আচার্য্য",
   },
+  description:
+    "লেখক প্রদীপ কুমার আচার্য্যের বাংলা সামাজিক উপন্যাস “ছেঁড়া পুষ্প” পড়ুন ও সংগ্রহ করুন। বইটির কাহিনি, লেখক পরিচিতি এবং ইবুক কেনার তথ্য দেখুন।",
+  keywords: ["ইবুক", "ডিজিটাল বই", "ই-বুক", "বাংলা সাহিত্য", "প্রদীপ কুমার আচার্য্য", "ছেঁড়া পুষ্প"],
+  other: {
+    "google-site-verification": "Ow2Z76OMA76Bt4_yqDVwE73osRBgtLd2NYrciIyjuQw",
+  },
+  openGraph: {
+    title: "প্রদীপ কুমার আচার্য্য | ছেঁড়া পুষ্প বাংলা উপন্যাস",
+    description:
+      "লেখক প্রদীপ কুমার আচার্য্যের বাংলা সামাজিক উপন্যাস “ছেঁড়া পুষ্প” পড়ুন ও সংগ্রহ করুন। বইটির কাহিনি, লেখক পরিচিতি এবং ইবুক কেনার তথ্য দেখুন।",
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    locale: SITE_LOCALE,
+    type: "website",
+    images: [{ url: absoluteUrl(DEFAULT_OG_IMAGE), width: 1200, height: 630, alt: "ছেঁড়া পুষ্প বাংলা উপন্যাসের প্রচ্ছদ" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "প্রদীপ কুমার আচার্য্য | ছেঁড়া পুষ্প বাংলা উপন্যাস",
+    description:
+      "লেখক প্রদীপ কুমার আচার্য্যের বাংলা সামাজিক উপন্যাস “ছেঁড়া পুষ্প” — ডিজিটাল ইবুক (PDF)।",
+    images: [absoluteUrl(DEFAULT_OG_IMAGE)],
+  },
+  // Deliberately no `robots` here. Indexing is the default, and hard-coding
+  // `index, follow` at the root emitted a tag that then appeared alongside the
+  // `noindex` on every private route, so a crawler reading the first tag saw
+  // "index" on a page meant to be excluded. Private routes are excluded by the
+  // `X-Robots-Tag` header in proxy.ts, which no page-level tag can
+  // override or conflict with.
 }
 
 export default function RootLayout({
@@ -67,11 +98,9 @@ export default function RootLayout({
         <AnnouncementBar />
         <ToastProvider>
           <AuthProvider>
-            <CartProvider>
-              <Navbar />
-              <main id="main-content">{children}</main>
-              <Footer />
-            </CartProvider>
+            <Navbar />
+            <main id="main-content">{children}</main>
+            <Footer />
           </AuthProvider>
         </ToastProvider>
       </body>

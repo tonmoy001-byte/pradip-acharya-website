@@ -1,9 +1,34 @@
 // lib/data.ts
-// Core types, store configuration, and seed book data.
-// This is the single source of truth for the demo catalogue.
+// Core types and store configuration.
+//
+// This store is EBOOK-ONLY. A book is sold exclusively as a digital ebook
+// (PDF) that is delivered through an admin-approved download grant. There is
+// no paperbook / physical format, no shipping and no courier.
 
-export type BookCategory = "novels" | "books"
-export type BookFormatName = "Paperback" | "eBook"
+/**
+ * The store carries exactly one book category: উপন্যাস.
+ *
+ * There is no multi-category taxonomy and no subcategory tree. The
+ * `books.category`, `books.subcategory` and `books.subcategory_slug` columns
+ * still exist in the database, but the application no longer maintains a
+ * category system the single-title catalog cannot use: `novels` is the only
+ * legal value and `subcategory_slug` is held equal to it.
+ */
+export const BOOK_CATEGORY = "novels" as const
+export type BookCategory = typeof BOOK_CATEGORY
+
+/**
+ * Bengali display label for {@link BOOK_CATEGORY}. Render this in the UI —
+ * never the raw `novels` key, which is for logic and filtering only.
+ */
+export const BOOK_CATEGORY_LABEL = "উপন্যাস" as const
+
+/** The single purchasable product format. */
+export const EBOOK_FORMAT_NAME = "eBook" as const
+export type BookFormatName = typeof EBOOK_FORMAT_NAME
+
+/** Digital delivery type used by `book_formats.delivery_type` / order snapshots. */
+export const EBOOK_DELIVERY_TYPE = "digital" as const
 
 export interface BookFormat {
   name: BookFormatName
@@ -16,17 +41,24 @@ export interface Book {
   id: string
   title: string
   author: string
+  /** Always {@link BOOK_CATEGORY}. Kept because `books.category` is a real column. */
   category: BookCategory
-  subcategory: string
-  subcategorySlug: string
+  /** Bengali label for {@link BookCategory}. Use this for display, not `category`. */
+  categoryLabel: string
   description: string
   synopsis?: string
-  formats: BookFormat[]
+  /** The one and only product: the ebook. */
+  ebook: BookFormat
   publicationDate?: string
   publisher?: string
   isbn?: string
   pages?: number
   language?: string
+  /**
+   * `hover` is an optional secondary cover. It stays absent when the book has
+   * no distinct second image — never substitute a placeholder, that would stack
+   * a second image on top of the real cover.
+   */
   images: { primary: string; hover?: string }
   featured: boolean
   isNew: boolean
@@ -37,101 +69,3 @@ export interface Book {
 // Store configuration
 export const STORE_LOCALE = "bn-BD"
 export const STORE_CURRENCY = "BDT"
-export const DELIVERY_CHARGE = 60
-export const FREE_DELIVERY_THRESHOLD = 750
-
-// Subcategory slug-to-label mapping
-export const SUBCATEGORY_MAP: Record<string, string> = {
-  novels: "উপন্যাস",
-  poetry: "কবিতা",
-  essays: "প্রবন্ধ",
-}
-
-// Category display names
-export const CATEGORIES: { slug: string; label: string; category: BookCategory }[] = [
-  { slug: "novels", label: "উপন্যাস", category: "novels" },
-  { slug: "literary-books", label: "সাহিত্য বই", category: "books" },
-]
-
-// Seed data
-export const BASE_BOOKS: Book[] = [
-  {
-    id: "chhera-pushpo",
-    title: "ছেঁড়া পুষ্প",
-    author: "প্রদীপ কুমার আচার্য্য",
-    category: "novels",
-    subcategory: "উপন্যাস",
-    subcategorySlug: "novels",
-    description: "একটি উপন্যাস যেখানে স্মৃতি ও বর্তমানের মিলন ঘটে।",
-    synopsis:
-      "ছেঁড়া পুষ্প প্রদীপ কুমার আচার্য্যের একটি উল্লেখযোগ্য উপন্যাস। এই গল্পে আমরা দেখতে পাই...",
-    formats: [
-      { name: "Paperback", price: 450, compareAtPrice: 550, available: true },
-      { name: "eBook", price: 199, available: true },
-    ],
-    publicationDate: "2026-01-01",
-    publisher: "সাহিত্য প্রকাশ",
-    pages: 320,
-    language: "বাংলা",
-    images: {
-      primary: "/images/books/chhera-pushpo-1.png",
-      hover: "/images/books/chhera-pushpo-2.png",
-    },
-    featured: true,
-    isNew: true,
-    trending: true,
-  },
-  {
-    id: "demo-poetry-1",
-    title: "স্বপ্নের ডানায়",
-    author: "ডেমো লেখক",
-    category: "books",
-    subcategory: "কবিতা",
-    subcategorySlug: "poetry",
-    description: "ডেমো কবিতা সংকলন।",
-    formats: [{ name: "Paperback", price: 250, available: true }],
-    images: {
-      primary:
-        "https://images.unsplash.com/photo-1524578271613-d550eacf6090?auto=format&fit=crop&w=900&q=80",
-    },
-    featured: false,
-    isNew: true,
-    trending: false,
-    isDemo: true,
-  },
-  {
-    id: "demo-novel-1",
-    title: "নদীর স্বর",
-    author: "ডেমো লেখক",
-    category: "novels",
-    subcategory: "উপন্যাস",
-    subcategorySlug: "novels",
-    description: "ডেমো উপন্যাস।",
-    formats: [{ name: "Paperback", price: 350, available: true }],
-    images: {
-      primary:
-        "https://images.unsplash.com/photo-1476275466078-4007374efbbe?auto=format&fit=crop&w=900&q=80",
-    },
-    featured: false,
-    isNew: false,
-    trending: true,
-    isDemo: true,
-  },
-]
-
-// Merge base + generated books
-import { generatedBooks } from "./generated-books"
-export const BOOKS: Book[] = [...BASE_BOOKS, ...generatedBooks]
-
-// Helper: get subcategories for a category from active catalogue
-export function subcategoriesFor(category?: BookCategory): { slug: string; label: string }[] {
-  const books = category ? BOOKS.filter((b) => b.category === category) : BOOKS
-  const seen = new Set<string>()
-  return books
-    .filter((b) => {
-      if (seen.has(b.subcategorySlug)) return false
-      seen.add(b.subcategorySlug)
-      return true
-    })
-    .map((b) => ({ slug: b.subcategorySlug, label: b.subcategory }))
-}
