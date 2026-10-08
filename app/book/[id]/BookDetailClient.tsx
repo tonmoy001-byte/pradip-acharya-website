@@ -3,6 +3,7 @@
 import type { Book } from "@/lib/data"
 import { money } from "@/lib/format"
 import { possessive } from "@/lib/format"
+import { bookAlternateName } from "@/lib/structured-data"
 import Gallery from "@/components/Gallery"
 import PaymentBadges from "@/components/PaymentBadges"
 import BuyNowButton from "@/components/BuyNowButton"
@@ -26,6 +27,9 @@ export default function BookDetailClient({ book }: BookDetailClientProps) {
   }
 
   const publicationDateLabel = formatPublicationDate(book.publicationDate)
+  const latinName = bookAlternateName(book.title)
+  const titleWithTransliteration =
+    latinName && latinName !== book.title ? `${book.title} (${latinName})` : book.title
 
   return (
     <>
@@ -102,7 +106,7 @@ export default function BookDetailClient({ book }: BookDetailClientProps) {
             elsewhere on the page or stored with the book. */}
         <section className="book-detail-facts" style={{ marginTop: "var(--sp-6)" }}>
           <h2 style={{ fontSize: "1.125rem", marginBottom: "var(--sp-3)" }}>
-            {book.title} — বাংলা সামাজিক উপন্যাস
+            {titleWithTransliteration} — বাংলা সামাজিক উপন্যাস
           </h2>
           <p style={{ marginBottom: "var(--sp-3)" }}>
             “{book.title}” হলো {possessive(book.author)} একটি বাংলা সামাজিক উপন্যাস, যা বাস্তব ও

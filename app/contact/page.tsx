@@ -12,6 +12,7 @@ import { pageMetadata } from "@/lib/seo"
 import { breadcrumbList } from "@/lib/structured-data"
 import JsonLd from "@/components/JsonLd"
 import { getCachedSiteSettings } from "@/lib/public-cache"
+import { toWhatsAppUrl } from "@/lib/contact"
 
 export const metadata: Metadata = pageMetadata({
   title: "যোগাযোগ",
@@ -24,6 +25,7 @@ export const metadata: Metadata = pageMetadata({
 export default async function ContactPage() {
   const settings = await getCachedSiteSettings()
   const email = typeof settings.contact_email === "string" ? settings.contact_email.trim() : ""
+  const whatsappUrl = toWhatsAppUrl(settings.contact_whatsapp)
 
   return (
     <div className="contact-page">
@@ -51,6 +53,19 @@ export default async function ContactPage() {
                 <span className="contact-detail-label">ইমেইল</span>
                 <a href={`mailto:${email}`} className="contact-detail-value">
                   {email}
+                </a>
+              </li>
+            )}
+            {whatsappUrl && (
+              <li>
+                <span className="contact-detail-label">হোয়াটসঅ্যাপ</span>
+                <a
+                  href={whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="contact-detail-value"
+                >
+                  হোয়াটসঅ্যাপে বার্তা পাঠান
                 </a>
               </li>
             )}

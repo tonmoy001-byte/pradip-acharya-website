@@ -1,7 +1,17 @@
 import Link from "next/link"
 import PaymentBadges from "./PaymentBadges"
+import { getCachedSiteSettings } from "@/lib/public-cache"
+import { toWhatsAppUrl } from "@/lib/contact"
 
-export default function Footer() {
+export default async function Footer() {
+  let whatsappUrl: string | null = null
+  try {
+    const settings = await getCachedSiteSettings()
+    whatsappUrl = toWhatsAppUrl(settings.contact_whatsapp)
+  } catch {
+    whatsappUrl = null
+  }
+
   return (
     <footer className="footer">
       <div className="container">
@@ -21,6 +31,11 @@ export default function Footer() {
             <Link href="/privacy">গোপনীয়তা নীতি</Link>
             <Link href="/refund-policy">রিফান্ড নীতি</Link>
             <Link href="/terms">শর্তাবলি</Link>
+            {whatsappUrl && (
+              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+                হোয়াটসঅ্যাপ
+              </a>
+            )}
           </div>
         </div>
         <hr className="divider" />
