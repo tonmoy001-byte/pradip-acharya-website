@@ -21,6 +21,8 @@ export default function robots(): MetadataRoute.Robots {
           "/admin",
           "/checkout",
           "/login",
+          "/logout",
+          "/register",
           "/verify",
           "/forgot-password",
           "/reset-password",
