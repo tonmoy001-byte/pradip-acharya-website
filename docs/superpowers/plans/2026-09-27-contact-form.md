@@ -1152,7 +1152,7 @@ Timeout: 600000 ms. Expected: deployment ID + status READY (poll `npx -y @insfor
 - [ ] **Step 5: Wait out the settings cache, then smoke-test the page HTML**
 
 ```powershell
-Start-Sleep -Seconds 75; curl.exe -s https://cpd9mnqf.insforge.site/contact | Out-File -Encoding utf8 $env:TEMP\contact.html; curl.exe -s https://cpd9mnqf.insforge.site/about | Out-File -Encoding utf8 $env:TEMP\about.html
+Start-Sleep -Seconds 75; curl.exe -s https://pradipbooks.insforge.site/contact | Out-File -Encoding utf8 $env:TEMP\contact.html; curl.exe -s https://pradipbooks.insforge.site/about | Out-File -Encoding utf8 $env:TEMP\about.html
 Select-String -Path $env:TEMP\contact.html -Pattern "contact-name" -Quiet
 Select-String -Path $env:TEMP\contact.html -Pattern "pradeep-acharya.example.com" -Quiet
 Select-String -Path $env:TEMP\about.html -Pattern "mail.google.com" -Quiet
@@ -1164,13 +1164,13 @@ Expected (four True/False lines): `True`, `False` (placeholder gone), `False` (g
 - [ ] **Step 6: API behavior — validation and honeypot (no real emails sent)**
 
 ```powershell
-curl.exe -s -o - -w "HTTP %{http_code}`n" -X POST https://cpd9mnqf.insforge.site/api/contact -H "Content-Type: application/json" -d "{\"name\":\"a\",\"email\":\"bad\",\"message\":\"short\"}"
+curl.exe -s -o - -w "HTTP %{http_code}`n" -X POST https://pradipbooks.insforge.site/api/contact -H "Content-Type: application/json" -d "{\"name\":\"a\",\"email\":\"bad\",\"message\":\"short\"}"
 ```
 
 Expected: `HTTP 400` with a Bengali `error`.
 
 ```powershell
-curl.exe -s -o - -w "HTTP %{http_code}`n" -X POST https://cpd9mnqf.insforge.site/api/contact -H "Content-Type: application/json" -d "{\"name\":\"Bot\",\"email\":\"bot@x.com\",\"message\":\"spam message here\",\"website\":\"http://spam\",\"startedAt\":$( [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - 60000 )}"
+curl.exe -s -o - -w "HTTP %{http_code}`n" -X POST https://pradipbooks.insforge.site/api/contact -H "Content-Type: application/json" -d "{\"name\":\"Bot\",\"email\":\"bot@x.com\",\"message\":\"spam message here\",\"website\":\"http://spam\",\"startedAt\":$( [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - 60000 )}"
 ```
 
 Expected: `HTTP 200` `{"ok":true}` — and **no email arrives** (user confirms inbox unchanged).
@@ -1178,7 +1178,7 @@ Expected: `HTTP 200` `{"ok":true}` — and **no email arrives** (user confirms i
 - [ ] **Step 7: Real submission — email must arrive (USER CONFIRMATION)**
 
 ```powershell
-curl.exe -s -o - -w "HTTP %{http_code}`n" -X POST https://cpd9mnqf.insforge.site/api/contact -H "Content-Type: application/json" -d "{\"name\":\"Test Visitor\",\"email\":\"test-visitor@example.com\",\"subject\":\"Plan live test\",\"message\":\"This is a live verification submission from the contact form.\",\"startedAt\":$( [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - 60000 )}"
+curl.exe -s -o - -w "HTTP %{http_code}`n" -X POST https://pradipbooks.insforge.site/api/contact -H "Content-Type: application/json" -d "{\"name\":\"Test Visitor\",\"email\":\"test-visitor@example.com\",\"subject\":\"Plan live test\",\"message\":\"This is a live verification submission from the contact form.\",\"startedAt\":$( [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - 60000 )}"
 ```
 
 Expected: `HTTP 200` `{"ok":true}`.
@@ -1188,13 +1188,13 @@ Expected: `HTTP 200` `{"ok":true}`.
 - [ ] **Step 8: Rate limit — 3 more sends, then 429**
 
 ```powershell
-1..3 | ForEach-Object { curl.exe -s -o - -w "HTTP %{http_code}`n" -X POST https://cpd9mnqf.insforge.site/api/contact -H "Content-Type: application/json" -d "{\"name\":\"Rate Test\",\"email\":\"rate@example.com\",\"subject\":\"Rate $_\",\"message\":\"Rate limit verification message $_.\",\"startedAt\":$( [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - 60000 )}" }
+1..3 | ForEach-Object { curl.exe -s -o - -w "HTTP %{http_code}`n" -X POST https://pradipbooks.insforge.site/api/contact -H "Content-Type: application/json" -d "{\"name\":\"Rate Test\",\"email\":\"rate@example.com\",\"subject\":\"Rate $_\",\"message\":\"Rate limit verification message $_.\",\"startedAt\":$( [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - 60000 )}" }
 ```
 
 Expected: three × `HTTP 200` (two more real emails arrive). Then the 4th:
 
 ```powershell
-curl.exe -s -o - -w "HTTP %{http_code}`n" -X POST https://cpd9mnqf.insforge.site/api/contact -H "Content-Type: application/json" -d "{\"name\":\"Rate Test\",\"email\":\"rate@example.com\",\"subject\":\"Rate 4\",\"message\":\"Rate limit verification message four.\",\"startedAt\":$( [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - 60000 )}"
+curl.exe -s -o - -w "HTTP %{http_code}`n" -X POST https://pradipbooks.insforge.site/api/contact -H "Content-Type: application/json" -d "{\"name\":\"Rate Test\",\"email\":\"rate@example.com\",\"subject\":\"Rate 4\",\"message\":\"Rate limit verification message four.\",\"startedAt\":$( [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - 60000 )}"
 ```
 
 Expected: `HTTP 429` with the Bengali try-later message. (Note: the live server's cold-start may have already reset the store — if the 4th returns 200, repeat the batch once; if it still won't block, the unit tests are the guarantee and this is accepted as a cold-start artifact.)
@@ -1205,14 +1205,14 @@ Run a dev-browser script (temp file under `%TEMP%\opencode\`, screenshot path re
 
 ```js
 // navigate to /about, click the ইমেইল button, expect landed on /contact
-await page.goto("https://cpd9mnqf.insforge.site/about", { waitUntil: "domcontentloaded" });
+await page.goto("https://pradipbooks.insforge.site/about", { waitUntil: "domcontentloaded" });
 const emailBtn = page.locator("a.about-contact-email");
 await emailBtn.click();
 await page.waitForURL("**/contact", { timeout: 15000 });
 await page.screenshot({ path: "contact-form-live.png", fullPage: true });
 ```
 
-Expected: URL becomes `https://cpd9mnqf.insforge.site/contact`; screenshot shows the Bengali form (নাম / ইমেইল / বিষয় / বার্তা + submit button). View the screenshot to confirm layout renders correctly.
+Expected: URL becomes `https://pradipbooks.insforge.site/contact`; screenshot shows the Bengali form (নাম / ইমেইল / বিষয় / বার্তা + submit button). View the screenshot to confirm layout renders correctly.
 
 - [ ] **Step 10: Admin recipient-change check (USER INTERACTION — optional but in spec)**
 

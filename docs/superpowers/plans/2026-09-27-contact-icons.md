@@ -145,11 +145,11 @@ Expected: `✓ Compiled successfully`, `/about` listed, exit 0.
 - [ ] **Step 1: Deploy**
 
 Run: `npx -y @insforge/cli deployments deploy . --json`
-Expected (timeout 600000): `"status": "READY"`, url `https://cpd9mnqf.insforge.site`. Capture deployment id.
+Expected (timeout 600000): `"status": "READY"`, url `https://pradipbooks.insforge.site`. Capture deployment id.
 
 - [ ] **Step 2: A11y + render check**
 
-Browser → `https://cpd9mnqf.insforge.site/about`, take a11y snapshot:
+Browser → `https://pradipbooks.insforge.site/about`, take a11y snapshot:
 Expected: two links named `হোয়াটসঅ্যাপে বার্তা পাঠান` (url `https://wa.me/8801761575734`) and `যোগাযোগ ফর্ম` (url `…/contact`); no visible button text; each contains one `svg`. Screenshot confirms: WhatsApp glyph white on green pill, envelope glyph dark on outlined pill, both ~22px, pills ~44×44, layout unchanged (figcaption still above, centered row).
 
 - [ ] **Step 3: Interaction checks**

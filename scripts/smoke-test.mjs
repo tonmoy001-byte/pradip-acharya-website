@@ -1,4 +1,4 @@
-const BASE = "https://cpd9mnqf.insforge.site";
+const BASE = "https://pradipbooks.insforge.site";
 const pages = ["/", "/books", "/novels", "/book/chhera-pushpo", "/about", "/contact", "/privacy", "/blog"];
 let fail = 0;
 const bad = (m) => { fail++; console.log("  FAIL " + m); };

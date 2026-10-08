@@ -14,7 +14,7 @@ const PROJECT_ID = "cpd9mnqf";
 const ENV_VARS = [
   { key: "NEXT_PUBLIC_INSFORGE_URL", value: "https://cpd9mnqf.ap-southeast.insforge.app" },
   { key: "NEXT_PUBLIC_INSFORGE_ANON_KEY", value: "anon_34290d5cd8a56b6f0a9885ad57385af0fe4d38bd8fe02104e94f3f36d8b705e2" },
-  { key: "NEXT_PUBLIC_SITE_URL", value: "https://cpd9mnqf.insforge.site" },
+  { key: "NEXT_PUBLIC_SITE_URL", value: "https://pradipbooks.insforge.site" },
 ];
 
 async function insforge(method, path, body) {

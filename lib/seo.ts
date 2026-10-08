@@ -10,7 +10,7 @@ import type { Metadata } from "next"
 const RAW_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL
 
 /** The site's real public origin. */
-const CANONICAL_ORIGIN = "https://cpd9mnqf.insforge.site"
+const CANONICAL_ORIGIN = "https://pradipbooks.insforge.site"
 
 /**
  * Resolve the canonical origin, refusing anything Google would reject.
@@ -42,6 +42,15 @@ export const SITE_URL = resolveSiteUrl()
 export const SITE_NAME = "প্রদীপ কুমার আচার্য্য"
 export const SITE_LOCALE = "bn_BD"
 export const SITE_LANG = "bn-BD"
+
+/**
+ * Owner-supplied contact/marketing values. Empty string means "not configured"
+ * — callers must not render links (e.g. WhatsApp) when these are empty, and
+ * must never invent a number or address.
+ */
+export const SITE_WHATSAPP = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER ?? ""
+export const SITE_SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? ""
+export const SITE_GA_ID = process.env.NEXT_PUBLIC_GA_ID ?? ""
 
 /** Turn a site-relative path into an absolute URL. */
 export function absoluteUrl(path: string): string {

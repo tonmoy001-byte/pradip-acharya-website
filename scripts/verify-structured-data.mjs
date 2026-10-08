@@ -1,5 +1,5 @@
 // Validates the JSON-LD that production actually serves.
-const BASE = "https://cpd9mnqf.insforge.site";
+const BASE = "https://pradipbooks.insforge.site";
 const PAGES = ["/", "/books", "/novels", "/book/chhera-pushpo", "/about", "/contact", "/privacy", "/blog"];
 
 let failures = 0;
@@ -77,8 +77,8 @@ const findType = (g, type) =>
 
   console.log("== cross-entity references resolve ==");
   {
-    const authorId = "https://cpd9mnqf.insforge.site/about#person";
-    const websiteId = "https://cpd9mnqf.insforge.site/#website";
+    const authorId = "https://pradipbooks.insforge.site/about#person";
+    const websiteId = "https://pradipbooks.insforge.site/#website";
     const bookGraphs = cache["/book/chhera-pushpo"].gs;
     const book = bookGraphs.map((g) => findType(g, "Book")).find(Boolean);
     const webpage = bookGraphs.map((g) => findType(g, "WebPage")).find(Boolean);

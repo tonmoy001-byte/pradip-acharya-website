@@ -1,5 +1,5 @@
 // Verifies the live deployment's SEO output end to end.
-const BASE = "https://cpd9mnqf.insforge.site";
+const BASE = "https://pradipbooks.insforge.site";
 
 const PUBLIC = ["/", "/books", "/novels", "/book/chhera-pushpo", "/about", "/contact", "/privacy", "/blog"];
 const PRIVATE = ["/login", "/checkout", "/account/orders", "/my-downloads", "/verify", "/payment/success", "/forgot-password"];

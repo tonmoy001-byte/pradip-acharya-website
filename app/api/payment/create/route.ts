@@ -48,7 +48,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Order already processed" }, { status: 400 })
     }
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://cpd9mnqf.insforge.site"
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://pradipbooks.insforge.site"
 
     // Create RupantorPay payment
     const payment = await createRupantorPayment({

@@ -112,7 +112,7 @@ All needed columns already exist in the orders table.
 ```
 RUPANTOR_PAY_API_KEY=your_api_key_here
 RUPANTOR_PAY_BASE_URL=https://payment.rupantorpay.com/api/payment
-NEXT_PUBLIC_SITE_URL=https://cpd9mnqf.insforge.site
+NEXT_PUBLIC_SITE_URL=https://pradipbooks.insforge.site
 ```
 
 ## Error Handling

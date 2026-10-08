@@ -36,7 +36,7 @@
 # Add to .env.local
 RUPANTOR_PAY_API_KEY=your_api_key_here
 RUPANTOR_PAY_BASE_URL=https://payment.rupantorpay.com/api/payment
-NEXT_PUBLIC_SITE_URL=https://cpd9mnqf.insforge.site
+NEXT_PUBLIC_SITE_URL=https://pradipbooks.insforge.site
 ```
 
 - [ ] **Step 2: Verify env vars are accessible**
@@ -207,7 +207,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Order already processed" }, { status: 400 })
     }
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://cpd9mnqf.insforge.site"
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://pradipbooks.insforge.site"
 
     // Create RupantorPay payment
     const payment = await createRupantorPayment({
@@ -801,7 +801,7 @@ node scripts/deploy-direct.mjs
 
 - [ ] **Step 3: Verify deployment**
 
-- Visit https://cpd9mnqf.insforge.site/checkout
+- Visit https://pradipbooks.insforge.site/checkout
 - Verify payment method selector appears
 - Test COD flow
 - Test RupantorPay flow (if test API key available)

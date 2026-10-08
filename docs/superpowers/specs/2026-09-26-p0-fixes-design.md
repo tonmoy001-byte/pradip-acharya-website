@@ -116,7 +116,7 @@ Behavior matrix:
 ### Soft-404 status (`app/book/[id]/page.tsx`)
 
 - `generateMetadata` (`:10`): replace `if (!book) return { title: "বই পাওয়া যায়নি" }` with `if (!book) notFound()` — Next sets the 404 status during the metadata phase, before any body streams (page already calls `notFound()` at `:29`; during the incident the metadata branch returned normally, which may be why status stayed 200).
-- Post-deploy verification: `curl -s -o /dev/null -w "%{http_code}" https://cpd9mnqf.insforge.site/book/nonexistent` → must be `404`. If still 200 → capture full response headers and investigate streaming flush (root `app/loading.tsx` exists; no route-level `loading.tsx` for `book/[id]`) before changing anything else.
+- Post-deploy verification: `curl -s -o /dev/null -w "%{http_code}" https://pradipbooks.insforge.site/book/nonexistent` → must be `404`. If still 200 → capture full response headers and investigate streaming flush (root `app/loading.tsx` exists; no route-level `loading.tsx` for `book/[id]`) before changing anything else.
 
 ### Tests (TDD — RED first): `lib/cache-utils.test.ts` (or alongside existing suites)
 

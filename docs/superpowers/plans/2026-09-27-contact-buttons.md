@@ -311,8 +311,8 @@ Expected: JSON with a deployment id. Poll until READY: `npx -y @insforge/cli dep
 - [ ] **Step 2: Verify empty state on live (values are currently empty)**
 
 ```powershell
-$code = curl.exe -s -o NUL -w "%{http_code}" https://cpd9mnqf.insforge.site/about
-$html = curl.exe -s https://cpd9mnqf.insforge.site/about
+$code = curl.exe -s -o NUL -w "%{http_code}" https://pradipbooks.insforge.site/about
+$html = curl.exe -s https://pradipbooks.insforge.site/about
 "status: $code"
 if ($html -match "wa\.me") { "FAIL: unexpected wa.me link" } else { "OK: no wa.me link" }
 if ($html -match "mailto:") { "FAIL: unexpected mailto link" } else { "OK: no mailto link" }
@@ -325,7 +325,7 @@ Expected: `status: 200`, both OK (empty values → buttons hidden).
 Exact content (UTF-8 via the Write tool; path `C:\Users\Tonmoy\AppData\Local\Temp\opencode\admin-roundtrip.js`):
 
 ```js
-const TARGET = "https://cpd9mnqf.insforge.site";
+const TARGET = "https://pradipbooks.insforge.site";
 
 const page = await browser.newPage();
 
@@ -411,8 +411,8 @@ Recovery on mismatch: wait 70 seconds (settings data-cache TTL backstop is 60s) 
 
 ```powershell
 npx -y @insforge/cli --json db query "SELECT key, value FROM site_settings WHERE key IN ('contact_email','contact_whatsapp')"
-$code = curl.exe -s -o NUL -w "%{http_code}" https://cpd9mnqf.insforge.site/about
-$html = curl.exe -s https://cpd9mnqf.insforge.site/about
+$code = curl.exe -s -o NUL -w "%{http_code}" https://pradipbooks.insforge.site/about
+$html = curl.exe -s https://pradipbooks.insforge.site/about
 "status: $code"
 if ($html -match "wa\.me|mailto:") { "FAIL: links present" } else { "OK: no contact links" }
 ```

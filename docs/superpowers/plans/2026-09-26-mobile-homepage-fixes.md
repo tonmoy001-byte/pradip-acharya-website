@@ -258,7 +258,7 @@ Poll `GET https://cpd9mnqf.ap-southeast.insforge.app/api/deployments/{ID}` with 
 
 - [ ] **Step 3: Smoke-test prod mobile**
 
-Open `https://cpd9mnqf.insforge.site` at 390px: confirm the 5 visual checks from Task 4 Step 2.
+Open `https://pradipbooks.insforge.site` at 390px: confirm the 5 visual checks from Task 4 Step 2.
 
 ---
 
