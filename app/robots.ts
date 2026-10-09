@@ -13,28 +13,15 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
+        // Keep this list minimal on purpose. Private pages (/account,
+        // /checkout, /login, /my-downloads, /payment, …) must stay CRAWLABLE
+        // so Google fetches them and sees the noindex directive (meta tag +
+        // X-Robots-Tag from proxy.ts). A URL blocked here can stay indexed
+        // forever as a bare link with no snippet. Query-parameter duplicates
+        // (?sort=, ?utm_=) are handled by self-referencing absolute
+        // canonicals, not by blocking.
         allow: "/",
-        disallow: [
-          // Private, transactional and administrative areas. These are also
-          // marked noindex in the page metadata.
-          "/account",
-          "/admin",
-          "/checkout",
-          "/login",
-          "/logout",
-          "/register",
-          "/verify",
-          "/forgot-password",
-          "/reset-password",
-          "/change-password",
-          "/my-downloads",
-          "/my-orders",
-          "/payment",
-          "/api/",
-          // Query-parameter duplicates of public pages (?sort=, ?subcategory=)
-          // must not compete with the canonical URL.
-          "/*?",
-        ],
+        disallow: ["/api/", "/admin"],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

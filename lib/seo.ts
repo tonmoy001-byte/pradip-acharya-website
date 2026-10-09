@@ -103,6 +103,8 @@ export function isPrivatePath(path: string): boolean {
 /** Shared social image used when a page has no more specific one. */
 export const DEFAULT_OG_IMAGE = "/images/books/chhera-pushpo-cover.jpg"
 export const AUTHOR_OG_IMAGE = "/images/author.png"
+/** Lightweight (≤300 KB) 1200×630 homepage share image, generated from the author photo. */
+export const HOME_OG_IMAGE = "/images/og/home.jpg"
 
 export interface PageMetaInput {
   /** Page title WITHOUT the site suffix — the root template appends it. */

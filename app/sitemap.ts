@@ -19,8 +19,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     bookPaths = []
   }
 
-  const now = new Date()
-
+  // No lastModified anywhere: the Book type has no updated-at field and
+  // static pages carry no change signal — stamping "now" on every request
+  // would be a false freshness signal, so the field is omitted entirely.
   // Higher priority for the money and identity pages a Bengali reader is
   // most likely to search for.
   const PRIORITY: Record<string, number> = {
@@ -37,14 +38,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const staticEntries: MetadataRoute.Sitemap = PUBLIC_PATHS.map((path) => ({
     url: absoluteUrl(path),
-    lastModified: now,
     changeFrequency: path === "/" ? "daily" : "weekly",
     priority: PRIORITY[path] ?? 0.5,
   }))
 
   const bookEntries: MetadataRoute.Sitemap = bookPaths.map((path) => ({
     url: absoluteUrl(path),
-    lastModified: now,
     changeFrequency: "weekly",
     priority: 0.9,
   }))

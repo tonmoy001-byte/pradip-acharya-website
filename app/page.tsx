@@ -5,7 +5,7 @@ import BookGrid from "@/components/BookGrid"
 import BookExcerpt from "@/components/BookExcerpt"
 import ScrollReveal from "@/components/ScrollReveal"
 import type { Book } from "@/lib/data"
-import { AUTHOR_OG_IMAGE, pageMetadata } from "@/lib/seo"
+import { HOME_OG_IMAGE, pageMetadata } from "@/lib/seo"
 import { websiteGraph } from "@/lib/structured-data"
 import JsonLd from "@/components/JsonLd"
 
@@ -17,7 +17,7 @@ export const metadata = pageMetadata({
   description:
     "প্রদীপ কুমার আচার্য্যের বাংলা সামাজিক উপন্যাস “ছেঁড়া পুষ্প” ডিজিটাল ইবুক (PDF) আকারে পড়ুন। bKash, Nagad, Rocket ও কার্ডে পেমেন্ট করে সঙ্গে সঙ্গে ডাউনলোড করুন।",
   path: "/",
-  image: AUTHOR_OG_IMAGE,
+  image: HOME_OG_IMAGE,
 })
 
 /** Featured + new + trending, de-duplicated, catalog order preserved. */
