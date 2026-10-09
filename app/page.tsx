@@ -1,4 +1,4 @@
-﻿import Link from "next/link"
+import Link from "next/link"
 import { getCachedFeatured, getCachedNewReleases, getCachedTrending, getCachedSiteSettings } from "@/lib/public-cache"
 import Hero, { HeroBook } from "@/components/Hero"
 import BookGrid from "@/components/BookGrid"
@@ -44,6 +44,16 @@ export default async function HomePage() {
 
   const heroBook = featured[0]
   const spotlightBooks = mergeFeaturedBooks(featured, newReleases, trending)
+  // Subtitle computed once and shared: Hero and HeroBook must not drift.
+  const heroSubtitle =
+    settings.hero_subtitle ||
+    "বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস। স্মৃতি ও বর্তমানের এক অনন্য মিলন।"
+  // No hardcoded fallback: the offer strip renders only when the owner sets
+  // promo text in site settings (there is no discount logic behind it).
+  const promoText =
+    typeof settings.promo_banner_text === "string" ? settings.promo_banner_text.trim() : ""
+  const footerText =
+    typeof settings.footer_text === "string" ? settings.footer_text.trim() : ""
 
   return (
     <>
@@ -56,20 +66,14 @@ export default async function HomePage() {
       <Hero
         title={heroBook?.title}
         author={heroBook?.author}
-        subtitle={
-          settings.hero_subtitle ||
-          "বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস। স্মৃতি ও বর্তমানের এক অনন্য মিলন।"
-        }
+        subtitle={heroSubtitle}
       />
 
       {/* The book itself, directly below the video */}
       <HeroBook
         title={heroBook?.title}
         author={heroBook?.author}
-        subtitle={
-          settings.hero_subtitle ||
-          "বাংলা সাহিত্যের একটি উল্লেখযোগ্য উপন্যাস। স্মৃতি ও বর্তমানের এক অনন্য মিলন।"
-        }
+        subtitle={heroSubtitle}
         price={heroBook?.ebook.price}
         cover={heroBook?.images.primary}
         slug={heroBook?.id}
@@ -120,6 +124,27 @@ export default async function HomePage() {
       {/* Promo strip and newsletter removed: promo_banner_text is free-form text
           with no discount logic behind it, and the newsletter form was never
           wired to a backend. Re-add only with a real offer / working handler. */}
+      {/* Offer strip: owner-controlled text only, no hardcoded fallback. */}
+      {promoText && (
+        <section className="section-padding">
+          <div className="container" style={{ textAlign: "center" }}>
+            <ScrollReveal>
+              <h2 style={{ marginBottom: "var(--sp-4)" }}>বিশেষ অফার</h2>
+              <p style={{ fontSize: "1.0625rem", marginBottom: "var(--sp-6)", maxWidth: 500, marginInline: "auto" }}>
+                {promoText}
+              </p>
+              <Link href="/books" className="btn btn-primary">সকল বই দেখুন</Link>
+            </ScrollReveal>
+          </div>
+        </section>
+      )}
+      {footerText && (
+        <div className="container" style={{ textAlign: "center" }}>
+          <p style={{ color: "var(--stone)", marginBottom: "var(--sp-6)", fontSize: "0.875rem" }}>
+            {footerText}
+          </p>
+        </div>
+      )}
     </>
   )
 }
