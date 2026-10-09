@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# প্রদীপ কুমার আচার্য্য — Bengali ebook store
 
-## Getting Started
+Next.js 16 (App Router) + React 19 + InsForge (Postgres BaaS) storefront for
+Bengali social novels as digital ebooks (PDF). Live site:
+`https://pradipbooks.insforge.site`.
 
-First, run the development server:
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm ci
+npm run dev        # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Environment
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Copy `.env.example` to `.env.local` and fill in real values. Never commit
+`.env.local`. Required for tests and local runs:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- `NEXT_PUBLIC_SITE_URL` — canonical public origin (only change needed for a custom domain)
+- `NEXT_PUBLIC_INSFORGE_URL`, `NEXT_PUBLIC_INSFORGE_ANON_KEY` — InsForge backend
+- `RUPANTOR_PAY_API_KEY`, `RUPANTOR_PAY_BASE_URL`, `RUPANTOR_PAY_WEBHOOK_SECRET` — payment gateway
+- `GMAIL_USER`, `GMAIL_APP_PASSWORD` — contact-form mail (server-only)
+- `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_WHATSAPP_NUMBER`, `NEXT_PUBLIC_GA_ID` — optional, empty until the owner provides them
 
-## Learn More
+## Checks
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+npm test            # vitest run (needs the two NEXT_PUBLIC_INSFORGE_* vars)
+npm run typecheck   # tsc --noEmit
+npm run build && npm start
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+No ESLint is configured; typecheck + tests + build are the quality gates.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploys (owner-run)
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Deploys go through `node scripts/deploy-direct.mjs` with an admin API key
+(`INSFORGE_API_KEY` in env) — deploying is the owner's job, never the agent's.
+SEO smoke checks: `node scripts/verify-seo.mjs`,
+`node scripts/verify-structured-data.mjs`, `node scripts/smoke-test.mjs`
+(all accept `SITE_URL` env, defaulting to the canonical host).
