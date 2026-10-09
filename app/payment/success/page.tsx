@@ -11,8 +11,9 @@ import SeoNoindex from "@/components/SeoNoindex"
 
 export default function PaymentSuccessPage() {
   const searchParams = useSearchParams()
-  const transactionId = searchParams.get("transaction_id")
-  const orderId = searchParams.get("order_id")
+  // NagorikPay redirects with `transactionId`; keep snake_case for older links.
+  const transactionId = searchParams.get("transactionId") || searchParams.get("transaction_id")
+  const [orderId, setOrderId] = useState(() => searchParams.get("order_id"))
 
   const [status, setStatus] = useState<"loading" | "paid" | "failed">("loading")
   const [error, setError] = useState("")
@@ -24,11 +25,12 @@ export default function PaymentSuccessPage() {
       return
     }
 
-    fetch(`/api/payment/verify?transaction_id=${encodeURIComponent(transactionId)}`)
+    fetch(`/api/payment/verify?transactionId=${encodeURIComponent(transactionId)}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.status === "paid") {
           setStatus("paid")
+          if (data.order_id) setOrderId((prev) => prev || data.order_id)
         } else {
           setStatus("failed")
           setError("পেমেন্ট যাচাইকরণ ব্যর্থ হয়েছে")

@@ -1,5 +1,5 @@
 // OWNER REVIEW REQUIRED before relying on this text — legal-adjacent text,
-// written only from what the code does (checkout fields, RupantorPay redirect,
+// written only from what the code does (checkout fields, NagorikPay redirect,
 // InsForge auth/storage, Gmail SMTP contact mail, no analytics).
 
 import type { Metadata } from "next"
@@ -47,7 +47,7 @@ export default function PrivacyPage() {
           কোনো শপিং কার্ট নেই — “ইবুক কিনুন” বোতামে সরাসরি অর্ডার তৈরি হয়। প্রতিটি অর্ডারের সাথে পেমেন্ট রেফারেন্স নম্বর
           (ট্রানজেকশন আইডি) সংরক্ষণ করা হয়। কার্ড নম্বর, bKash/Nagad/Rocket
           পিন বা ওয়ালেটের গোপন তথ্য এই সাইটে কখনো লেখা বা সংরক্ষণ করা হয় না —
-          পেমেন্টের তথ্য সরাসরি পেমেন্ট গেটওয়ের (RupantorPay) নিরাপদ পেজে দেওয়া
+          পেমেন্টের তথ্য সরাসরি পেমেন্ট গেটওয়ের (NagorikPay) নিরাপদ পেজে দেওয়া
           হয়।
         </p>
 

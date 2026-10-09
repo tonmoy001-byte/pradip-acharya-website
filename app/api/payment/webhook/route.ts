@@ -1,73 +1,76 @@
 // app/api/payment/webhook/route.ts
-// POST: RupantorPay webhook for server-to-server payment notifications.
-// Verifies webhook authenticity via HMAC-SHA256 signature when RUPANTOR_PAY_WEBHOOK_SECRET is set.
-// Always re-verifies payment status with the RupantorPay API before marking orders as paid.
+// POST: NagorikPay webhook (IPN) for server-to-server payment notifications.
+//
+// NagorikPay sends form-urlencoded fields (transactionId, status, …) and signs
+// the raw body with HMAC-SHA256: message = timestamp + "." + rawBody.
+// Signing key is NAGORIKPAY_WEBHOOK_SECRET when set, else the brand API key.
+// Always re-verifies payment status with the NagorikPay API before marking
+// orders as paid.
 
+import { createHmac, timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/insforge-service"
-import { verifyRupantorPayment } from "@/lib/rupantor"
+import { verifyNagorikPayPayment } from "@/lib/nagorikpay"
 
 export const dynamic = "force-dynamic"
 
+const REPLAY_WINDOW_SECONDS = 300
+
 /**
- * Verify HMAC-SHA256 webhook signature.
- * Returns true if signature is valid or if no secret is configured (graceful fallback).
+ * Verify NagorikPay HMAC-SHA256 webhook signature.
+ * Signed message is `timestamp + "." + rawBody` (form-urlencoded bytes).
  */
-async function verifyWebhookSignature(
-  body: string,
+function verifyWebhookSignature(
+  rawBody: string,
+  timestampHeader: string | null,
   signatureHeader: string | null,
-): Promise<boolean> {
-  const secret = process.env.RUPANTOR_PAY_WEBHOOK_SECRET
+): boolean {
+  const secret = process.env.NAGORIKPAY_WEBHOOK_SECRET || process.env.NAGORIKPAY_API_KEY
   if (!secret) {
-    // No secret configured — skip signature check (not ideal but graceful)
-    console.warn("[webhook] RUPANTOR_PAY_WEBHOOK_SECRET not set — skipping signature verification")
+    console.warn("[webhook] no NAGORIKPAY_WEBHOOK_SECRET or API key — skipping signature verification")
     return true
   }
-  if (!signatureHeader) return false
+  if (!timestampHeader || !signatureHeader) return false
 
-  try {
-    const encoder = new TextEncoder()
-    const key = await crypto.subtle.importKey(
-      "raw",
-      encoder.encode(secret),
-      { name: "HMAC", hash: "SHA-256" },
-      false,
-      ["verify"],
-    )
+  const timestamp = Number(timestampHeader)
+  if (!Number.isFinite(timestamp)) return false
+  if (Math.abs(Date.now() / 1000 - timestamp) > REPLAY_WINDOW_SECONDS) return false
 
-    // Decode the expected signature from hex
-    const sigBytes = new Uint8Array(
-      signatureHeader.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) ?? [],
-    )
+  // Header format: sha256=<hex>
+  const givenHex = signatureHeader.startsWith("sha256=")
+    ? signatureHeader.slice("sha256=".length)
+    : signatureHeader
 
-    const bodyBytes = encoder.encode(body)
-    return await crypto.subtle.verify("HMAC", key, sigBytes, bodyBytes)
-  } catch {
-    return false
-  }
+  const expected = createHmac("sha256", secret)
+    .update(`${timestampHeader}.${rawBody}`)
+    .digest("hex")
+
+  if (givenHex.length !== expected.length) return false
+  return timingSafeEqual(Buffer.from(givenHex, "utf8"), Buffer.from(expected, "utf8"))
 }
 
 export async function POST(req: Request) {
   try {
-    // Verify webhook signature
     const rawBody = await req.text()
-    const signature = req.headers.get("x-signature") || req.headers.get("x-webhook-signature")
+    const timestamp = req.headers.get("x-nagorikpay-timestamp")
+    const signature = req.headers.get("x-nagorikpay-signature")
 
-    const isValid = await verifyWebhookSignature(rawBody, signature)
+    const isValid = verifyWebhookSignature(rawBody, timestamp, signature)
     if (!isValid) {
       console.error("[webhook] Invalid signature")
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 })
     }
 
-    const body = JSON.parse(rawBody)
-    const { transaction_id } = body
+    // Form-urlencoded payload: transactionId, status, paymentMethod, …
+    const params = new URLSearchParams(rawBody)
+    const transactionId = params.get("transactionId") || params.get("transaction_id")
 
-    if (!transaction_id) {
-      return NextResponse.json({ error: "transaction_id required" }, { status: 400 })
+    if (!transactionId) {
+      return NextResponse.json({ error: "transactionId required" }, { status: 400 })
     }
 
-    // Verify with RupantorPay API (always re-verify, never trust the webhook payload alone)
-    const result = await verifyRupantorPayment(transaction_id)
+    // Verify with NagorikPay API (always re-verify, never trust the webhook payload alone)
+    const result = await verifyNagorikPayPayment(transactionId)
 
     const client = createServiceClient()
 
@@ -94,7 +97,7 @@ export async function POST(req: Request) {
       // case where the first settlement granted nothing.
       await client.database.rpc("fulfill_paid_order", {
         p_order_id: order.id,
-        p_payment_reference: transaction_id,
+        p_payment_reference: transactionId,
       })
       return NextResponse.json({ received: true })
     }
@@ -112,15 +115,15 @@ export async function POST(req: Request) {
         .from("orders")
         .update({
           payment_status: "paid",
-          payment_reference: transaction_id,
+          payment_reference: transactionId,
           paid_at: new Date().toISOString(),
         })
         .eq("id", order.id)
 
       // Log payment event
       await client.database.from("payment_events").insert({
-        provider: "rupantor",
-        provider_transaction_id: transaction_id,
+        provider: "nagorikpay",
+        provider_transaction_id: transactionId,
         order_id: order.id,
         status: "completed",
         verified: true,
@@ -131,7 +134,7 @@ export async function POST(req: Request) {
       // closes the tab before the redirect completes.
       const { error: fulfillError } = await client.database.rpc("fulfill_paid_order", {
         p_order_id: order.id,
-        p_payment_reference: transaction_id,
+        p_payment_reference: transactionId,
       })
       if (fulfillError) {
         console.error("[webhook] Fulfillment failed:", fulfillError)

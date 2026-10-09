@@ -170,7 +170,7 @@ describe("POST /api/orders — ebook-only", () => {
     expect(order.shipping_address).toBeNull()
     expect(order.delivery_charge).toBe(0)
     expect(order.fulfillment_status).toBe("not_applicable")
-    expect(order.payment_method).toBe("rupantor")
+    expect(order.payment_method).toBe("nagorikpay")
   })
 
   it("ignores a client-supplied total and recomputes it", async () => {

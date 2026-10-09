@@ -82,7 +82,7 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
 
       // Validate payment URL to prevent open redirect
       const paymentUrl = payData.payment_url as string
-      const allowedHosts = ["payment.rupantorpay.com"]
+      const allowedHosts = ["secure-pay.nagorikpay.com", "sandbox-api.nagorikpay.com"]
       try {
         const parsedUrl = new URL(paymentUrl)
         if (!allowedHosts.includes(parsedUrl.hostname)) {
@@ -165,7 +165,7 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
                   borderRadius: "var(--radius-md)", cursor: "pointer",
                   background: "#fff7ed", borderColor: "var(--terracotta)",
                 }}>
-                  <input type="radio" name="payment-method" value="rupantor" checked readOnly style={{ marginTop: "2px" }} />
+                  <input type="radio" name="payment-method" value="nagorikpay" checked readOnly style={{ marginTop: "2px" }} />
                   <div>
                     <span style={{ fontWeight: 600 }}>অনলাইন পেমেন্ট</span>
                     <span style={{ fontSize: "0.75rem", color: "var(--stone)", marginLeft: "var(--sp-2)" }}>

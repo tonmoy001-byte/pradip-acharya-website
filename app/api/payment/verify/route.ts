@@ -1,18 +1,21 @@
 // app/api/payment/verify/route.ts
-// GET: Verify a RupantorPay payment after the customer redirect.
+// GET: Verify a NagorikPay payment after the customer redirect.
 //
-// This is the settlement path. Once RupantorPay confirms the transaction as
+// This is the settlement path. Once NagorikPay confirms the transaction as
 // COMPLETED and the amount covers the order total, the order is marked paid and
 // `fulfill_paid_order` immediately issues the download grants — there is no
 // waiting on a human admin, so the buyer can download the moment they land back
 // on the site.
+//
+// NagorikPay redirects append `transactionId` (camelCase). Accept the legacy
+// snake_case `transaction_id` as well so older bookmarks keep working.
 //
 // Writes go through the service client because the `orders` table has no
 // non-admin UPDATE policy: the customer's own JWT cannot mark their order paid.
 
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/insforge-service"
-import { verifyRupantorPayment } from "@/lib/rupantor"
+import { verifyNagorikPayPayment } from "@/lib/nagorikpay"
 
 export const dynamic = "force-dynamic"
 
@@ -31,14 +34,15 @@ function sanitizePostgREST(input: string): string {
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-    const transactionId = searchParams.get("transaction_id")
+    const transactionId =
+      searchParams.get("transactionId") || searchParams.get("transaction_id")
 
     if (!transactionId) {
-      return NextResponse.json({ error: "transaction_id required" }, { status: 400 })
+      return NextResponse.json({ error: "transactionId required" }, { status: 400 })
     }
 
-    // Verify with RupantorPay
-    const result = await verifyRupantorPayment(transactionId)
+    // Verify with NagorikPay
+    const result = await verifyNagorikPayPayment(transactionId)
 
     const client = createServiceClient()
 
@@ -98,7 +102,7 @@ export async function GET(req: Request) {
 
       // Log payment event
       await client.database.from("payment_events").insert({
-        provider: "rupantor",
+        provider: "nagorikpay",
         provider_transaction_id: transactionId,
         order_id: order.id,
         status: "completed",

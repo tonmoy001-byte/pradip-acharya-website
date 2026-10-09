@@ -6,7 +6,7 @@
 // The client never selects a format. For every requested book the server
 // resolves the book's own `delivery_type = 'digital'` format row and prices the
 // line from that row. A book with no digital format — or a request that names
-// a physical/paperbook format or a non-rupantor payment method — is rejected.
+// a physical/paperbook format or a non-nagorikpay payment method — is rejected.
 // There is therefore no client-controllable path to buy a paperbook.
 
 import { NextResponse } from "next/server"
@@ -101,7 +101,7 @@ export async function POST(req: Request) {
     }
 
     // Ebook-only store: cash on delivery does not exist.
-    const paymentMethod = "rupantor"
+    const paymentMethod = "nagorikpay"
 
     const resolvedItems: Array<{
       cart: CartItem

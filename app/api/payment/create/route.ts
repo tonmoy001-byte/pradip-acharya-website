@@ -1,10 +1,10 @@
 // app/api/payment/create/route.ts
-// POST: Initiate RupantorPay payment for an order.
+// POST: Initiate NagorikPay payment for an order.
 
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
-import { createRupantorPayment } from "@/lib/rupantor"
+import { createNagorikPayPayment, formatNagorikPayAmount } from "@/lib/nagorikpay"
 
 export const dynamic = "force-dynamic"
 
@@ -48,18 +48,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Order already processed" }, { status: 400 })
     }
 
-    // NOTE: fallback intentionally left as the legacy host. RupantorPay may
-    // whitelist the callback domain — owner must confirm the gateway dashboard
-    // allows the canonical host before changing this. See task group B report.
+    // NOTE: fallback intentionally left as the legacy host until the owner
+    // confirms the gateway allows the canonical host. See brand form notes.
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://cpd9mnqf.insforge.site"
 
-    // Create RupantorPay payment
-    const payment = await createRupantorPayment({
-      fullname: orderRow.contact.name,
-      email: orderRow.contact.email,
-      amount: String(orderRow.total),
-      success_url: `${siteUrl}/payment/success?transaction_id={transaction_id}`,
-      cancel_url: `${siteUrl}/payment/cancel?order_id=${order_id}`,
+    // NagorikPay appends its own redirect query params (transactionId, status, …)
+    // to success_url — do not embed a RupantorPay-style {transaction_id} placeholder.
+    const payment = await createNagorikPayPayment({
+      cus_name: orderRow.contact.name,
+      cus_email: orderRow.contact.email,
+      amount: formatNagorikPayAmount(orderRow.total),
+      success_url: `${siteUrl}/payment/success`,
+      cancel_url: `${siteUrl}/payment/cancel?order_id=${encodeURIComponent(order_id)}`,
       webhook_url: `${siteUrl}/api/payment/webhook`,
       metadata: {
         order_id: order_id,
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
     // Update order with payment method
     await client.database
       .from("orders")
-      .update({ payment_method: "rupantor" })
+      .update({ payment_method: "nagorikpay" })
       .eq("id", order_id)
 
     return NextResponse.json({ payment_url: payment.payment_url })

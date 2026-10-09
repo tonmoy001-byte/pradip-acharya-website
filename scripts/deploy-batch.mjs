@@ -1,3 +1,5 @@
+// Batch deploy: uploads files in small groups to avoid timeouts on slow networks.
+// Usage: node scripts/deploy-batch.mjs [batchSize]
 import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
@@ -5,20 +7,16 @@ import path from "node:path";
 
 const API_BASE_URL = requiredEnv("NEXT_PUBLIC_INSFORGE_URL");
 const API_KEY = requiredEnv("INSFORGE_API_KEY");
+const BATCH_SIZE = Number.parseInt(process.argv[2] || "5", 10);
 
 function requiredEnv(name) {
   const v = process.env[name];
-  if (!v) throw new Error(`${name} is not set (see .env.example)`);
+  if (!v) throw new Error(`${name} is not set`);
   return v;
 }
 
-const DEFAULT_UPLOAD_CONCURRENCY = 8;
-const MAX_UPLOAD_CONCURRENCY = 32;
 const EXCLUDED_SEGMENTS = new Set(["node_modules", ".git", ".next", "dist", "build", ".insforge"]);
 
-// .env.local is never uploaded (see shouldExcludeDeploymentPath), so every
-// variable the app needs at runtime has to be forwarded explicitly here.
-// Values are read from the local .env.local / process env, never hardcoded.
 const DEPLOY_ENV_KEYS = [
   "NEXT_PUBLIC_INSFORGE_URL",
   "NEXT_PUBLIC_INSFORGE_ANON_KEY",
@@ -38,48 +36,29 @@ try {
     const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
     if (!match) continue;
     let value = match[2].trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"') && value.length > 1) ||
-      (value.startsWith("'") && value.endsWith("'") && value.length > 1)
-    ) {
+    if ((value.startsWith('"') && value.endsWith('"') && value.length > 1) ||
+        (value.startsWith("'") && value.endsWith("'") && value.length > 1)) {
       value = value.slice(1, -1);
     }
     localEnvFile.set(match[1], value);
   }
-} catch {
-  console.warn(".env.local not found; falling back to process.env for deploy env vars.");
-}
+} catch {}
 
 function envValue(key) {
   return process.env[key] ?? localEnvFile.get(key) ?? "";
 }
 
-function buildEnvVars() {
-  const envVars = [];
-  for (const key of DEPLOY_ENV_KEYS) {
-    const value = envValue(key);
-    if (!value) {
-      console.warn("Skipping deploy env var with no local value: " + key);
-      continue;
-    }
-    envVars.push({ key, value });
-  }
-  return envVars;
-}
-
 function shouldExcludeDeploymentPath(normalizedName) {
   const segments = normalizedName.split("/");
-  if (segments.some((segment) => segment === ".env" || segment.startsWith(".env."))) return true;
-  if (segments.some((segment) => EXCLUDED_SEGMENTS.has(segment))) return true;
+  if (segments.some((s) => s === ".env" || s.startsWith(".env."))) return true;
+  if (segments.some((s) => EXCLUDED_SEGMENTS.has(s))) return true;
   return normalizedName === ".DS_Store" || normalizedName.endsWith("/.DS_Store") || normalizedName.endsWith(".log");
 }
 
 async function readJsonResponse(response) {
   const text = await response.text();
   let data = null;
-  if (text) {
-    try { data = JSON.parse(text); } catch { data = text; }
-  }
+  if (text) { try { data = JSON.parse(text); } catch { data = text; } }
   if (!response.ok) {
     const message = data && typeof data === "object" ? data.message || data.error : null;
     throw new Error(message || "Request failed with status " + response.status);
@@ -91,25 +70,6 @@ async function api(pathname, init = {}) {
   const headers = { "x-api-key": API_KEY, ...(init.headers || {}) };
   const response = await fetch(API_BASE_URL + pathname, { ...init, headers });
   return readJsonResponse(response);
-}
-
-function getUploadConcurrency() {
-  const parsed = Number.parseInt(process.env.INSFORGE_DEPLOY_UPLOAD_CONCURRENCY || "", 10);
-  const requested = Number.isSafeInteger(parsed) && parsed > 0 ? parsed : DEFAULT_UPLOAD_CONCURRENCY;
-  return Math.min(requested, MAX_UPLOAD_CONCURRENCY);
-}
-
-async function runWithConcurrency(items, concurrency, worker) {
-  let nextIndex = 0;
-  async function runWorker() {
-    while (nextIndex < items.length) {
-      const index = nextIndex;
-      nextIndex += 1;
-      await worker(items[index], index);
-    }
-  }
-  const workerCount = Math.min(concurrency, items.length);
-  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
 }
 
 async function hashFile(filePath) {
@@ -156,7 +116,7 @@ async function uploadFile(deploymentId, manifestFile, localFile) {
 
 const rootDirectory = process.cwd();
 const localFiles = await collectFiles(rootDirectory);
-if (localFiles.length === 0) throw new Error("No deployable files found after applying exclusions.");
+console.log("Total files to deploy: " + localFiles.length);
 
 const createResult = await api("/api/deployments/direct", {
   method: "POST",
@@ -164,33 +124,35 @@ const createResult = await api("/api/deployments/direct", {
   body: JSON.stringify({ files: localFiles.map(({ path, sha, size }) => ({ path, sha, size })) }),
 });
 
-if (!createResult || !Array.isArray(createResult.files)) {
-  throw new Error("Direct deployment endpoint returned an unexpected response.");
-}
-
 const deploymentId = createResult.id;
 const localFileByPath = new Map(localFiles.map((file) => [file.path, file]));
-const uploadConcurrency = getUploadConcurrency();
-console.log("Created deployment. Deployment ID: " + deploymentId);
+console.log("Created deployment: " + deploymentId);
+console.log("Uploading in batches of " + BATCH_SIZE + "...");
 
-await runWithConcurrency(createResult.files, uploadConcurrency, async (manifestFile) => {
-  const localFile = localFileByPath.get(manifestFile.path);
-  if (!localFile) throw new Error("Backend returned an unknown file path: " + manifestFile.path);
-  if (localFile.sha !== manifestFile.sha || localFile.size !== manifestFile.size) {
-    throw new Error("Backend file metadata mismatch for: " + manifestFile.path);
-  }
-  await uploadFile(deploymentId, manifestFile, localFile);
-});
+let uploaded = 0;
+for (let i = 0; i < createResult.files.length; i += BATCH_SIZE) {
+  const batch = createResult.files.slice(i, i + BATCH_SIZE);
+  await Promise.all(batch.map(async (manifestFile) => {
+    const localFile = localFileByPath.get(manifestFile.path);
+    if (!localFile) throw new Error("Unknown file: " + manifestFile.path);
+    if (localFile.sha !== manifestFile.sha || localFile.size !== manifestFile.size) {
+      throw new Error("Metadata mismatch: " + manifestFile.path);
+    }
+    await uploadFile(deploymentId, manifestFile, localFile);
+  }));
+  uploaded += batch.length;
+  console.log("  Uploaded " + uploaded + "/" + createResult.files.length);
+}
 
-console.log("Deployment files uploaded. Deployment ID: " + deploymentId);
-console.log("Uploaded " + createResult.files.length + " files through direct deployment proxy.");
-console.log("Starting deployment build...");
-const envVars = buildEnvVars();
-console.log("Forwarding " + envVars.length + "/" + DEPLOY_ENV_KEYS.length + " env vars: " + envVars.map((entry) => entry.key).join(", "));
+console.log("All files uploaded. Starting build...");
+const envVars = DEPLOY_ENV_KEYS
+  .filter((key) => envValue(key))
+  .map((key) => ({ key, value: envValue(key) }));
+
 const startResult = await api("/api/deployments/" + encodeURIComponent(deploymentId) + "/start", {
   method: "POST",
   headers: { "Content-Type": "application/json" },
   body: JSON.stringify({ envVars }),
 });
-console.log("Deployment build started:", JSON.stringify(startResult));
+console.log("Build started:", JSON.stringify(startResult));
 console.log("DEPLOYMENT_ID=" + deploymentId);

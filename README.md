@@ -18,7 +18,7 @@ Copy `.env.example` to `.env.local` and fill in real values. Never commit
 
 - `NEXT_PUBLIC_SITE_URL` — canonical public origin (only change needed for a custom domain)
 - `NEXT_PUBLIC_INSFORGE_URL`, `NEXT_PUBLIC_INSFORGE_ANON_KEY` — InsForge backend
-- `RUPANTOR_PAY_API_KEY`, `RUPANTOR_PAY_BASE_URL`, `RUPANTOR_PAY_WEBHOOK_SECRET` — payment gateway
+- `NAGORIKPAY_API_KEY`, `NAGORIKPAY_BASE_URL`, `NAGORIKPAY_WEBHOOK_SECRET` — payment gateway
 - `GMAIL_USER`, `GMAIL_APP_PASSWORD` — contact-form mail (server-only)
 - `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_WHATSAPP_NUMBER`, `NEXT_PUBLIC_GA_ID` — optional, empty until the owner provides them
 
