@@ -1,14 +1,12 @@
 import { notFound } from "next/navigation"
 import { getCachedBookById, getCachedRelated } from "@/lib/public-cache"
 import { pageMetadata } from "@/lib/seo"
+import { bookMetaDescription } from "@/lib/book-meta"
 import { bookGraph } from "@/lib/structured-data"
 import { possessive } from "@/lib/format"
 import JsonLd from "@/components/JsonLd"
 import BookDetailClient from "./BookDetailClient"
 import BookGrid from "@/components/BookGrid"
-
-const PAGE_DESCRIPTION =
-  "“ছেঁড়া পুষ্প” প্রদীপ কুমার আচার্য্যের একটি সামাজিক বাংলা উপন্যাস। কাহিনি, লেখক পরিচিতি, ইবুকের তথ্য এবং ৳৫০ মূল্যে সংগ্রহের পদ্ধতি দেখুন।"
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -17,7 +15,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   return pageMetadata({
     title: `${book.title} — ${possessive(book.author)} বাংলা উপন্যাস`,
-    description: PAGE_DESCRIPTION,
+    description: bookMetaDescription(book),
     path: `/book/${book.id}`,
     image: book.images.primary,
     imageAlt: `${book.title} বাংলা উপন্যাসের প্রচ্ছদ`,
