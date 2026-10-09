@@ -7,8 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
-    "import-listings": "node scripts/import-listings.mjs"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@insforge/sdk": "^1.5.2",
