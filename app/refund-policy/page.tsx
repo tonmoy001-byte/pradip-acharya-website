@@ -1,6 +1,7 @@
-// OWNER REVIEW REQUIRED before launch — legal-adjacent text. The refund
-// window below is a TODO(owner) business decision; the delivery flow
-// (immediate download after verified payment) matches the actual code.
+// OWNER REVIEW REQUIRED before relying on this text — legal-adjacent text.
+// The refund window is a TODO(owner) business decision; the delivery flow
+// (download grants after verified payment, manual admin approval path) matches
+// the actual code.
 
 import type { Metadata } from "next"
 import { pageMetadata } from "@/lib/seo"
@@ -37,8 +38,9 @@ export default function RefundPolicyPage() {
         <h2 style={{ marginBottom: "var(--sp-3)" }}>ডেলিভারি: ডাউনলোড লিংক কখন পাবেন</h2>
         <p style={{ marginBottom: "var(--sp-4)" }}>
           পেমেন্ট সফলভাবে যাচাই হওয়ার সঙ্গে সঙ্গে আপনার “আমার ডাউনলোড” পাতায়
-          ইবুকের (PDF) ডাউনলোড লিংক সক্রিয় হয়ে যায়। কোনো কুরিয়ার বা ভৌত
-          ডেলিভারি নেই — সব বই ডিজিটাল।
+          ইবুকের (PDF) ডাউনলোড লিংক সক্রিয় হয়ে যায়। কিছু পেমেন্টে অ্যাডমিন
+          যাচাই করে লিংক সক্রিয় করেন — তখন কিছুটা সময় লাগতে পারে। কোনো কুরিয়ার
+          বা ভৌত ডেলিভারি নেই — সব বই ডিজিটাল।
         </p>
 
         <h2 style={{ marginBottom: "var(--sp-3)" }}>

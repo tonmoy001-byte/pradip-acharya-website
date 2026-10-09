@@ -1,6 +1,6 @@
-// OWNER REVIEW REQUIRED before launch — legal-adjacent text describing the
-// ebook license. Matches the actual product (single PDF per purchase, download
-// grants issued per paid order).
+// OWNER REVIEW REQUIRED before relying on this text — legal-adjacent text
+// describing the ebook license. Matches the actual product (single PDF per
+// purchase, download grants issued per paid order).
 
 import type { Metadata } from "next"
 import { pageMetadata } from "@/lib/seo"
@@ -47,9 +47,15 @@ export default function TermsPage() {
         </p>
 
         <h2 style={{ marginBottom: "var(--sp-3)" }}>কপিরাইট</h2>
-        <p>
+        <p style={{ marginBottom: "var(--sp-4)" }}>
           সব বইয়ের স্বত্ব লেখক ও প্রকাশকের সংরক্ষিত। শর্ত ভঙ্গ হলে অ্যাকাউন্ট
           ও ডাউনলোড সুবিধা বাতিল হতে পারে।
+        </p>
+
+        <h2 style={{ marginBottom: "var(--sp-3)" }}>প্রযোজ্য আইন</h2>
+        <p>
+          {/* TODO(owner): কোন দেশের আইন প্রযোজ্য হবে তা এখানে লিখুন। */}
+          এই শর্তাবলি নিয়ে বিরোধ হলে প্রযোজ্য আইন অনুযায়ী নিষ্পত্তি হবে।
         </p>
       </div>
     </div>

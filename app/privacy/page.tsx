@@ -1,7 +1,6 @@
-// OWNER REVIEW REQUIRED before launch — legal-adjacent text. The refund window
-// below is a TODO(owner) business decision; everything else describes what the
-// code actually does (checkout contact fields, RupantorPay redirect flow,
-// InsForge auth/storage, /contact ~24h response note).
+// OWNER REVIEW REQUIRED before relying on this text — legal-adjacent text,
+// written only from what the code does (checkout fields, RupantorPay redirect,
+// InsForge auth/storage, Gmail SMTP contact mail, no analytics).
 
 import type { Metadata } from "next"
 import { pageMetadata, SITE_SUPPORT_EMAIL } from "@/lib/seo"
@@ -43,8 +42,9 @@ export default function PrivacyPage() {
         <h2 style={{ marginBottom: "var(--sp-3)" }}>১. কোন তথ্য সংগ্রহ করা হয়</h2>
         <p style={{ marginBottom: "var(--sp-4)" }}>
           অর্ডার করার সময় আমরা আপনার নাম, ইমেইল ঠিকানা ও ফোন নম্বর সংগ্রহ করি।
-          অ্যাকাউন্ট খুললে আপনার লগইন ইমেইল, এবং যোগাযোগ ফর্মে আপনার পাঠানো
-          বার্তা সংরক্ষিত হয়। প্রতিটি অর্ডারের সাথে পেমেন্ট রেফারেন্স নম্বর
+          অ্যাকাউন্ট খুললে আপনার লগইন ইমেইল, পছন্দের তালিকায় (wishlist) রাখা
+          বই, এবং যোগাযোগ ফর্মে আপনার পাঠানো বার্তা সংরক্ষিত হয়। এই সাইটে
+          কোনো শপিং কার্ট নেই — “ইবুক কিনুন” বোতামে সরাসরি অর্ডার তৈরি হয়। প্রতিটি অর্ডারের সাথে পেমেন্ট রেফারেন্স নম্বর
           (ট্রানজেকশন আইডি) সংরক্ষণ করা হয়। কার্ড নম্বর, bKash/Nagad/Rocket
           পিন বা ওয়ালেটের গোপন তথ্য এই সাইটে কখনো লেখা বা সংরক্ষণ করা হয় না —
           পেমেন্টের তথ্য সরাসরি পেমেন্ট গেটওয়ের (RupantorPay) নিরাপদ পেজে দেওয়া
@@ -62,15 +62,17 @@ export default function PrivacyPage() {
         <p style={{ marginBottom: "var(--sp-4)" }}>
           অর্ডার সম্পন্ন করতে আপনার তথ্য প্রয়োজনে নিচের সেবাগুলোর সাথে
           ভাগ করা হয়: পেমেন্ট গেটওয়ে (অনলাইন পেমেন্ট প্রক্রিয়াকরণ), ইমেইল
-          সেবা (অর্ডার ও যোগাযোগের উত্তর), এবং হোস্টিং ও ডেটাবেস সেবা
-          (InsForge)। বর্তমানে এই সাইটে কোনো থার্ড-পার্টি অ্যানালিটিক্স
+          সেবা (Gmail SMTP — যোগাযোগ ফর্মের বার্তা নির্ধারিত ঠিকানায় পাঠাতে),
+          এবং হোস্টিং ও ডেটাবেস সেবা (InsForge)। বর্তমানে এই সাইটে কোনো থার্ড-পার্টি অ্যানালিটিক্স
           (যেমন Google Analytics) চালু নেই।
         </p>
 
-        <h2 style={{ marginBottom: "var(--sp-3)" }}>৪. কুকি</h2>
+        <h2 style={{ marginBottom: "var(--sp-3)" }}>৪. কুকি ও লোকাল স্টোরেজ</h2>
         <p style={{ marginBottom: "var(--sp-4)" }}>
           লগইন অবস্থা বজায় রাখতে এই সাইটে প্রয়োজনীয় সেশন কুকি ব্যবহার করা
-          হয়। অ্যানালিটিক্স বা বিজ্ঞাপনী কুকি বর্তমানে ব্যবহার করা হয় না।
+          হয়। ইমেইল যাচাইয়ের সুবিধার জন্য ব্রাউজারের localStorage-এ সাময়িকভাবে
+          আপনার ইমেইল রাখা হয়, যাচাই শেষে তা মুছে যায়। অ্যানালিটিক্স বা
+          বিজ্ঞাপনী কুকি বর্তমানে ব্যবহার করা হয় না।
         </p>
 
         <h2 style={{ marginBottom: "var(--sp-3)" }}>৫. তথ্য সংরক্ষণের সময়কাল</h2>
