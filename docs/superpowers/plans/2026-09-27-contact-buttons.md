@@ -280,7 +280,7 @@ Expected: 0 errors.
 Run (single PowerShell command):
 
 ```powershell
-$env:NEXT_PUBLIC_INSFORGE_URL="https://cpd9mnqf.ap-southeast.insforge.app"; $env:NEXT_PUBLIC_INSFORGE_ANON_KEY="anon_34290d5cd8a56b6f0a9885ad57385af0fe4d38bd8fe02104e94f3f36d8b705e2"; npx vitest run
+$env:NEXT_PUBLIC_INSFORGE_URL="https://cpd9mnqf.ap-southeast.insforge.app"; $env:NEXT_PUBLIC_INSFORGE_ANON_KEY="<REDACTED-ANON-KEY>"; npx vitest run
 ```
 
 Expected: 49/49 pass (41 existing + 8 new contact tests). (Without the env preamble, 2 `resolveCoverImage` tests fail — env-dependent, not a code bug.)

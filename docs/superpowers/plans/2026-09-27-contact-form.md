@@ -20,7 +20,7 @@
 **Test preamble (prepend to every vitest invocation):**
 
 ```powershell
-$env:NEXT_PUBLIC_INSFORGE_URL="https://cpd9mnqf.ap-southeast.insforge.app"; $env:NEXT_PUBLIC_INSFORGE_ANON_KEY="anon_34290d5cd8a56b6f0a9885ad57385af0fe4d38bd8fe02104e94f3f36d8b705e2"; npx vitest run <file>
+$env:NEXT_PUBLIC_INSFORGE_URL="https://cpd9mnqf.ap-southeast.insforge.app"; $env:NEXT_PUBLIC_INSFORGE_ANON_KEY="<REDACTED-ANON-KEY>"; npx vitest run <file>
 ```
 
 ---
@@ -150,7 +150,7 @@ describe("validateContactInput", () => {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 ```powershell
-$env:NEXT_PUBLIC_INSFORGE_URL="https://cpd9mnqf.ap-southeast.insforge.app"; $env:NEXT_PUBLIC_INSFORGE_ANON_KEY="anon_34290d5cd8a56b6f0a9885ad57385af0fe4d38bd8fe02104e94f3f36d8b705e2"; npx vitest run lib/contact-form.test.ts
+$env:NEXT_PUBLIC_INSFORGE_URL="https://cpd9mnqf.ap-southeast.insforge.app"; $env:NEXT_PUBLIC_INSFORGE_ANON_KEY="<REDACTED-ANON-KEY>"; npx vitest run lib/contact-form.test.ts
 ```
 
 Expected: FAIL — module `./contact-form` not found (or `sanitizeContactText is not a function`).
@@ -1040,7 +1040,7 @@ Remove the entire block (starting `describe("toGmailComposeUrl", () => {` throug
 - [ ] **Step 6: Run the full test suite + type-check**
 
 ```powershell
-$env:NEXT_PUBLIC_INSFORGE_URL="https://cpd9mnqf.ap-southeast.insforge.app"; $env:NEXT_PUBLIC_INSFORGE_ANON_KEY="anon_34290d5cd8a56b6f0a9885ad57385af0fe4d38bd8fe02104e94f3f36d8b705e2"; npx vitest run
+$env:NEXT_PUBLIC_INSFORGE_URL="https://cpd9mnqf.ap-southeast.insforge.app"; $env:NEXT_PUBLIC_INSFORGE_ANON_KEY="<REDACTED-ANON-KEY>"; npx vitest run
 ```
 
 Expected: PASS — all files green (suite = previous 50 − 3 gmail tests + 28 new = 75, ±0 if counts shifted — the requirement is **0 failed**).
@@ -1062,7 +1062,7 @@ Expected: no output, exit 0 (proves no lingering `toGmailComposeUrl` references)
 - [ ] **Step 1: Full test suite**
 
 ```powershell
-$env:NEXT_PUBLIC_INSFORGE_URL="https://cpd9mnqf.ap-southeast.insforge.app"; $env:NEXT_PUBLIC_INSFORGE_ANON_KEY="anon_34290d5cd8a56b6f0a9885ad57385af0fe4d38bd8fe02104e94f3f36d8b705e2"; npx vitest run
+$env:NEXT_PUBLIC_INSFORGE_URL="https://cpd9mnqf.ap-southeast.insforge.app"; $env:NEXT_PUBLIC_INSFORGE_ANON_KEY="<REDACTED-ANON-KEY>"; npx vitest run
 ```
 
 Expected: 0 failed.
@@ -1108,7 +1108,7 @@ This task requires **user interaction** (Step 1). Stop and ask the user when you
 Tell the user:
 
 > To send email I need two server-side secrets:
-> 1. Your Gmail address (`GMAIL_USER`) — e.g. `itay89640@gmail.com`
+> 1. Your Gmail address (`GMAIL_USER`) — e.g. `<REDACTED-EMAIL>`
 > 2. A Gmail **App Password** (`GMAIL_APP_PASSWORD`, 16 chars, different from your login password):
 >    - Open https://myaccount.google.com/security
 >    - Turn ON **2-Step Verification** (required first), then return to that page

@@ -7,13 +7,19 @@ import { dirname } from "path";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = join(__dirname, "..");
-const INSFORGE_URL = "https://cpd9mnqf.ap-southeast.insforge.app";
-const API_KEY = "ik_edebac0bcdf5888116829062d67682ce";
+const INSFORGE_URL = requiredEnv("NEXT_PUBLIC_INSFORGE_URL");
+const API_KEY = requiredEnv("INSFORGE_API_KEY");
 const PROJECT_ID = "cpd9mnqf";
 
+function requiredEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error(`${name} is not set (see .env.example)`);
+  return v;
+}
+
 const ENV_VARS = [
-  { key: "NEXT_PUBLIC_INSFORGE_URL", value: "https://cpd9mnqf.ap-southeast.insforge.app" },
-  { key: "NEXT_PUBLIC_INSFORGE_ANON_KEY", value: "anon_34290d5cd8a56b6f0a9885ad57385af0fe4d38bd8fe02104e94f3f36d8b705e2" },
+  { key: "NEXT_PUBLIC_INSFORGE_URL", value: requiredEnv("NEXT_PUBLIC_INSFORGE_URL") },
+  { key: "NEXT_PUBLIC_INSFORGE_ANON_KEY", value: requiredEnv("NEXT_PUBLIC_INSFORGE_ANON_KEY") },
   { key: "NEXT_PUBLIC_SITE_URL", value: "https://pradipbooks.insforge.site" },
 ];
 

@@ -254,7 +254,7 @@ Expected: prints a deployment ID (script runs `npx tsc --noEmit` first).
 
 - [ ] **Step 2: Poll until READY**
 
-Poll `GET https://cpd9mnqf.ap-southeast.insforge.app/api/deployments/{ID}` with header `x-api-key: ik_edebac0bcdf5888116829062d67682ce` every ~15s until `"status": "READY"` (not `/status` — that 404s).
+Poll `GET https://cpd9mnqf.ap-southeast.insforge.app/api/deployments/{ID}` with header `x-api-key: <REDACTED-ADMIN-KEY>` every ~15s until `"status": "READY"` (not `/status` — that 404s).
 
 - [ ] **Step 3: Smoke-test prod mobile**
 

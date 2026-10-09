@@ -1,8 +1,14 @@
 import { createClient } from "@insforge/sdk"
 
+function requiredEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error(`${name} is not set (see .env.example)`);
+  return v;
+}
+
 const client = createClient({
-  baseUrl: "https://cpd9mnqf.ap-southeast.insforge.app",
-  anonKey: "anon_34290d5cd8a56b6f0a9885ad57385af0fe4d38bd8fe02104e94f3f36d8b705e2",
+  baseUrl: requiredEnv("NEXT_PUBLIC_INSFORGE_URL"),
+  anonKey: requiredEnv("NEXT_PUBLIC_INSFORGE_ANON_KEY"),
 })
 
 // Check what admin_update_book does by looking at the RPC

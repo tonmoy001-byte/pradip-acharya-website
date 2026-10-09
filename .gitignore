@@ -35,6 +35,13 @@ next-dev*.log
 # temp / scratch files
 temp-*
 
+# sql backups and dumps (may contain PII)
+*.sql.bak
+*backup*.sql
+/db/backups/
+/incoming/*.csv
+!/incoming/listings-template.csv
+
 # env files (can opt-in for committing if needed)
 .env*
 

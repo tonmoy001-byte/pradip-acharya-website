@@ -3,8 +3,15 @@ import { createReadStream } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const API_BASE_URL = "https://cpd9mnqf.ap-southeast.insforge.app";
-const API_KEY = "ik_edebac0bcdf5888116829062d67682ce";
+const API_BASE_URL = requiredEnv("NEXT_PUBLIC_INSFORGE_URL");
+const API_KEY = requiredEnv("INSFORGE_API_KEY");
+
+function requiredEnv(name) {
+  const v = process.env[name];
+  if (!v) throw new Error(`${name} is not set (see .env.example)`);
+  return v;
+}
+
 const DEFAULT_UPLOAD_CONCURRENCY = 8;
 const MAX_UPLOAD_CONCURRENCY = 32;
 const EXCLUDED_SEGMENTS = new Set(["node_modules", ".git", ".next", "dist", "build", ".insforge"]);
