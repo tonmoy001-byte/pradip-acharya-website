@@ -48,7 +48,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Order already processed" }, { status: 400 })
     }
 
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://pradipbooks.insforge.site"
+    // NOTE: fallback intentionally left as the legacy host. RupantorPay may
+    // whitelist the callback domain — owner must confirm the gateway dashboard
+    // allows the canonical host before changing this. See task group B report.
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://cpd9mnqf.insforge.site"
 
     // Create RupantorPay payment
     const payment = await createRupantorPayment({

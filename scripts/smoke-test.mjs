@@ -1,4 +1,4 @@
-const BASE = "https://pradipbooks.insforge.site";
+const BASE = process.env.SITE_URL ?? "https://pradipbooks.insforge.site";
 const pages = ["/", "/books", "/novels", "/book/chhera-pushpo", "/about", "/contact", "/privacy", "/blog"];
 let fail = 0;
 const bad = (m) => { fail++; console.log("  FAIL " + m); };
