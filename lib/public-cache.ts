@@ -17,7 +17,7 @@ import {
   type SiteSettings,
   type Post,
 } from "./api"
-import { withUncachedFallback, nullOnFailure } from "./cache-utils"
+import { withUncachedFallback } from "./cache-utils"
 import type { Book } from "./data"
 
 export const CACHE_TAGS = {
@@ -47,13 +47,13 @@ const cachedBookByIdQuery = unstable_cache(
   { tags: [CACHE_TAGS.books], revalidate: REVALIDATE_SECONDS },
 )
 
-// Never persist a failure: unstable_cache stores resolved values only, so a
-// rejection falls through to an uncached direct query; if that also fails we
-// serve null for THIS request without writing anything to the cache.
+// A failed query must throw (rendered as 5xx by app/error.tsx, which crawlers
+// treat as temporary) — it must never be served as 404, or crawlers can drop
+// a real product from the index. null is returned only when the query
+// succeeded and matched no row. Failures are still never written to the
+// cache: unstable_cache stores resolved values only.
 export async function getCachedBookById(id: string): Promise<Book | null> {
-  return nullOnFailure(() =>
-    withUncachedFallback(() => cachedBookByIdQuery(id), () => getBookById(id)),
-  )
+  return withUncachedFallback(() => cachedBookByIdQuery(id), () => getBookById(id))
 }
 
 const cachedFeaturedQuery = unstable_cache(
