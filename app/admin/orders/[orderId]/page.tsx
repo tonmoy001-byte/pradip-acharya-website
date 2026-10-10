@@ -28,8 +28,6 @@ interface Order {
   contact: { name?: string; email?: string; phone?: string }
   payment_method: string | null
   payment_reference: string | null
-  receipt_storage_key: string | null
-  bkash_trx_id: string | null
   created_at: string
   paid_at: string | null
   cancelled_at: string | null
@@ -48,7 +46,8 @@ interface Order {
 
 const PAYMENT_LABELS: Record<string, string> = {
   pending_payment: "অপেক্ষমান",
-  pending_verification: "যাচাই বাকি",
+  pending_verification: "যাচাই বাকি", // legacy: manual-verification era
+  payment_review: "পেমেন্ট নিশ্চিত হচ্ছে",
   paid: "পেইড",
   refunded: "ফেরত",
   failed: "ব্যর্থ",
@@ -60,7 +59,6 @@ export default function AdminOrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
-  const [actionLoading, setActionLoading] = useState(false)
 
   useEffect(() => {
     fetch(`/api/admin/orders/${orderId}`)
@@ -72,34 +70,6 @@ export default function AdminOrderDetailPage() {
       .catch(() => setError("অর্ডার খুঁজে পাওয়া যায়নি"))
       .finally(() => setLoading(false))
   }, [orderId])
-
-  const handleApprove = async () => {
-    if (!confirm("এই অর্ডার অনুমোদন করতে চান?")) return
-    setActionLoading(true)
-    try {
-      const res = await fetch(`/api/admin/orders/${orderId}/approve`, { method: "POST" })
-      if (!res.ok) throw new Error("অনুমোদন করা যায়নি")
-      setOrder((prev) => prev ? { ...prev, payment_status: "paid", paid_at: new Date().toISOString() } : prev)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleReject = async () => {
-    if (!confirm("এই অর্ডার প্রত্যাখ্যান করতে চান?")) return
-    setActionLoading(true)
-    try {
-      const res = await fetch(`/api/admin/orders/${orderId}/reject`, { method: "POST" })
-      if (!res.ok) throw new Error("প্রত্যাখ্যান করা যায়নি")
-      setOrder((prev) => prev ? { ...prev, payment_status: "failed" } : prev)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setActionLoading(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -132,12 +102,6 @@ export default function AdminOrderDetailPage() {
         </div>
         <div style={{ display: "flex", gap: "var(--sp-3)" }}>
           <Link href="/admin/orders" className="btn btn-secondary">সব অর্ডার</Link>
-          {order.payment_status === "pending_verification" && (
-            <>
-              <button className="btn btn-primary" onClick={handleApprove} disabled={actionLoading}>অনুমোদন</button>
-              <button className="btn btn-danger" onClick={handleReject} disabled={actionLoading}>প্রত্যাখ্যান</button>
-            </>
-          )}
         </div>
       </div>
 
@@ -248,7 +212,7 @@ export default function AdminOrderDetailPage() {
                         </span>
                       ) : (
                         <span className="admin-badge admin-badge-draft" style={{ fontSize: "0.6875rem" }}>
-                          অনুমোদন বাকি
+                          অনুমোদনের অপেক্ষায়
                         </span>
                       )
                     ) : (
@@ -278,3 +242,9 @@ export default function AdminOrderDetailPage() {
     </div>
   )
 }
+
+/*
+Orders are immutable from the admin API. Payment status changes only when
+NagorikPay confirms a transaction (lib/payment-settlement.ts, via
+/api/payment/verify and /api/payment/webhook).
+*/

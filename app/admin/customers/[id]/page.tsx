@@ -21,7 +21,8 @@ interface Customer {
 
 const PAYMENT_LABELS: Record<string, string> = {
   pending_payment: "অপেক্ষমান",
-  pending_verification: "যাচাই বাকি",
+  pending_verification: "যাচাই বাকি", // legacy: manual-verification era
+  payment_review: "পেমেন্ট নিশ্চিত হচ্ছে",
   paid: "পেইড",
   refunded: "ফেরত",
   failed: "ব্যর্থ",

@@ -18,7 +18,8 @@ interface DashboardData {
 
 const PAYMENT_LABELS: Record<string, string> = {
   pending_payment: "অপেক্ষমান",
-  pending_verification: "যাচাই বাকি",
+  pending_verification: "যাচাই বাকি", // legacy: manual-verification era
+  payment_review: "পেমেন্ট নিশ্চিত হচ্ছে",
   paid: "পেইড",
   refunded: "ফেরত",
   failed: "ব্যর্থ",
@@ -91,7 +92,7 @@ export default function AdminDashboard() {
           <div className="admin-stat-value">{data.totalCustomers}</div>
         </div>
         <div className="admin-stat-card">
-          <div className="admin-stat-label">ডাউনলোড অনুমোদন বাকি</div>
+          <div className="admin-stat-label">পেইড কিন্তু ডাউনলোড প্রস্তুত নয়</div>
           <div className="admin-stat-value">{data.pendingDownloads}</div>
         </div>
       </div>

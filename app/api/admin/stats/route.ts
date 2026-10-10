@@ -1,6 +1,6 @@
 // app/api/admin/stats/route.ts
-// GET: Admin dashboard stats — total orders, pending verification, revenue,
-// and paid ebook orders still awaiting download approval.
+// GET: Admin dashboard stats — total orders, revenue,
+// and paid ebook orders still awaiting download grants.
 // There is no shipping/delivery metric: the store is digital-only.
 
 import { NextResponse } from "next/server"
@@ -23,9 +23,6 @@ export async function GET() {
 
     const orders = allOrders || []
     const totalOrders = orders.length
-    const pendingVerification = orders.filter(
-      (o: any) => o.payment_status === "pending_verification"
-    ).length
     const totalRevenue = orders
       .filter((o: any) => o.payment_status === "paid")
       .reduce((sum, o: any) => sum + Number(o.total), 0)
@@ -57,7 +54,6 @@ export async function GET() {
 
     return NextResponse.json({
       totalOrders,
-      pendingVerification,
       totalRevenue,
       pendingDownloads,
     })

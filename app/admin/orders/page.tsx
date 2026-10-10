@@ -1,5 +1,6 @@
 // app/admin/orders/page.tsx
-// Admin orders page — stats, filters, table with approve/reject modals.
+// Admin orders page — stats, filters, table. Payment is confirmed only by the gateway.
+// No manual approve/reject buttons remain.
 
 "use client"
 
@@ -9,14 +10,13 @@ import ToastContainer, { showToast } from "@/components/admin/Toast"
 
 interface Stats {
   totalOrders: number
-  pendingVerification: number
   totalRevenue: number
   pendingDownloads: number
 }
 
 const FILTERS = [
   { value: "", label: "সব" },
-  { value: "pending_verification", label: "যাচাই বাকি" },
+  { value: "pending_payment", label: "পেমেন্ট বাকি" },
   { value: "paid", label: "পেইড" },
   { value: "refunded", label: "ফেরত" },
 ]
@@ -90,15 +90,11 @@ export default function AdminOrdersPage() {
             <p className="admin-stat-value">{stats.totalOrders}</p>
           </div>
           <div className="admin-stat-card">
-            <p className="admin-stat-label">যাচাই বাকি</p>
-            <p className="admin-stat-value">{stats.pendingVerification}</p>
-          </div>
-          <div className="admin-stat-card">
             <p className="admin-stat-label">মোট আয়</p>
             <p className="admin-stat-value">৳ {stats.totalRevenue.toLocaleString("bn-BD")}</p>
           </div>
           <div className="admin-stat-card">
-            <p className="admin-stat-label">ডাউনলোড অনুমোদন বাকি</p>
+            <p className="admin-stat-label">পেইড কিন্তু ডাউনলোড প্রস্তুত নয়</p>
             <p className="admin-stat-value">{stats.pendingDownloads}</p>
           </div>
         </div>

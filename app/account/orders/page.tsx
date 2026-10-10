@@ -57,7 +57,8 @@ function paymentBadgeColor(status: string) {
 function paymentLabel(s: string) {
   const map: Record<string, string> = {
     pending_payment: "পেমেন্ট বাকি",
-    pending_verification: "পর্যালোচনাধীন",
+    pending_verification: "পর্যালোচনাধীন", // legacy: manual-verification era
+    payment_review: "পেমেন্ট নিশ্চিত হচ্ছে",
     paid: "পরিশোধিত",
     refunded: "ফেরত দেওয়া হয়েছে",
   }

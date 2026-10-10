@@ -41,7 +41,6 @@ export async function GET(req: Request, { params }: { params: Promise<{ orderId:
   }
 }
 
-// Digital-only store: orders are immutable from the admin API. Payment status
-// changes only through the approve/reject RPCs (which also record payment
-// history and issue ebook download grants), and there is no shipping
-// fulfilment state to set.
+// Digital-only store: orders are immutable from the admin API. Payment status changes only when
+// NagorikPay confirms a transaction (lib/payment-settlement.ts, via
+// /api/payment/verify and /api/payment/webhook).
