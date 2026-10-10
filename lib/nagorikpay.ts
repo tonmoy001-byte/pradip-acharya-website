@@ -70,8 +70,10 @@ export async function createNagorikPayPayment(
     throw new Error(`NagorikPay create returned non-JSON: ${text}`)
   }
 
-  if (data.status !== true || !data.payment_url) {
-    // Surface the raw payload: gateway messages are short and easy to lose.
+  if (!data.payment_url || typeof data.payment_url !== "string") {
+    // Treat any non-empty payment_url as success — the gateway sometimes
+    // returns status as 1/"true" rather than boolean true. On failure,
+    // surface the raw payload: gateway messages are short and easy to lose.
     throw new Error(
       `NagorikPay create failed: message=${JSON.stringify((data as { message?: unknown }).message)} status=${JSON.stringify(data.status)} payload=${text}`,
     )
