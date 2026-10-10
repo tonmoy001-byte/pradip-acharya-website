@@ -1,9 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useAuth } from "@/lib/auth"
 import { money } from "@/lib/format"
+import { safeNextPath } from "@/lib/safe-redirect"
 
 export interface DirectItem {
   bookId: string
@@ -17,9 +18,8 @@ interface CheckoutClientProps {
   /** Book bought via a buy-now link. Resolved on the server. */
   directItem: DirectItem | null
 }
-
 export default function CheckoutClient({ directItem }: CheckoutClientProps) {
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
 
   // There is no cart: the order is built from the book resolved on the server.
   const orderItems: DirectItem[] = directItem ? [directItem] : []
@@ -29,6 +29,11 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [serverError, setServerError] = useState("")
   const [submitting, setSubmitting] = useState(false)
+
+  // Build the return-to-checkout path for login links
+  const checkoutPath = typeof window !== "undefined"
+    ? window.location.pathname + window.location.search
+    : "/checkout"
 
   function update(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -67,7 +72,12 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "অর্ডার তৈরি ব্যর্থ হয়েছে")
+      if (!res.ok) {
+        if (res.status === 401) {
+          throw new Error("আপনার সেশন শেষ হয়েছে, আবার লগ ইন করুন")
+        }
+        throw new Error(data.error || "অর্ডার তৈরি ব্যর্থ হয়েছে")
+      }
 
       const orderId = data.data.order_id || data.data.id
 
@@ -78,7 +88,12 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
         body: JSON.stringify({ order_id: orderId }),
       })
       const payData = await payRes.json()
-      if (!payRes.ok) throw new Error(payData.error || "পেমেন্ট তৈরি ব্যর্থ")
+      if (!payRes.ok) {
+        if (payRes.status === 401) {
+          throw new Error("আপনার সেশন শেষ হয়েছে, আবার লগ ইন করুন")
+        }
+        throw new Error(payData.error || "পেমেন্ট তৈরি ব্যর্থ")
+      }
 
       // Validate payment URL to prevent open redirect
       const paymentUrl = payData.payment_url as string
@@ -92,7 +107,8 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
         throw new Error("অবৈধ পেমেন্ট URL")
       }
 
-      window.location.href = paymentUrl    } catch (err: any) {
+      window.location.href = paymentUrl
+    } catch (err: any) {
       setServerError(err.message || "একটি ত্রুটি ঘটেছে। আবার চেষ্টা করুন।")
       setSubmitting(false)
     }
@@ -110,6 +126,64 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
     )
   }
 
+  // While checking session, show a subtle placeholder (no form flash)
+  if (loading) {
+    return (
+      <div className="container section-padding">
+        <div className="page-header">
+          <h1>চেকআউট</h1>
+        </div>
+        <div style={{ padding: "var(--sp-8)", textAlign: "center", color: "var(--stone)" }}>
+          লোড হচ্ছে…
+        </div>
+      </div>
+    )
+  }
+
+  // Not logged in: show login prompt instead of form
+  if (!user) {
+    const loginUrl = `/login?next=${encodeURIComponent(checkoutPath)}`
+    const signupUrl = `/login?tab=signup&next=${encodeURIComponent(checkoutPath)}`
+
+    return (
+      <div className="container section-padding">
+        <div className="page-header">
+          <h1>চেকআউট</h1>
+        </div>
+
+        <div style={{ padding: "var(--sp-6)", background: "#fefce8", border: "1px solid #fde047", borderRadius: "var(--radius-lg)" }}>
+          <h2 style={{ marginBottom: "var(--sp-2)" }}>চেকআউট</h2>
+          <p style={{ marginBottom: "var(--sp-4)", color: "var(--stone)" }}>
+            বইটি কিনতে আগে লগ ইন করুন বা নতুন অ্যাকাউন্ট খুলুন। লগ ইন করলে আপনার ডাউনলোড ও অর্ডার সবসময় এখানেই পাবেন।
+          </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--sp-3)" }}>
+            <Link href={loginUrl} className="btn btn-primary">
+              লগ ইন করুন
+            </Link>
+            <Link href={signupUrl} className="btn btn-secondary">
+              অ্যাকাউন্ট খুলুন
+            </Link>
+          </div>
+        </div>
+
+        {/* Order summary still visible */}
+        <div className="cart-summary" style={{ marginTop: "var(--sp-8)" }}>
+          <h2>অর্ডার সারসংক্ষেপ</h2>
+          {orderItems.map((item) => (
+            <div key={item.bookId} className="cart-summary-row">
+              <span>{item.title} (ইবুক)</span>
+              <span>{money(item.price * item.quantity)}</span>
+            </div>
+          ))}
+          <div className="cart-summary-total">
+            <span>মোট</span>
+            <span>{money(total)}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   const inputStyle = { width: "100%" }
 
   return (
@@ -117,12 +191,6 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
       <div className="page-header">
         <h1>চেকআউট</h1>
       </div>
-
-      {!user && (
-        <div style={{ padding: "var(--sp-3) var(--sp-4)", marginBottom: "var(--sp-6)", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: "var(--radius)", fontSize: "0.875rem" }}>
-          <Link href="/login" style={{ fontWeight: 600 }}>লগ ইন করুন</Link> অর্ডার ট্র্যাক করতে এবং ডাউনলোড অ্যাক্সেস পেতে।
-        </div>
-      )}
 
       {serverError && (
         <div role="alert" style={{ padding: "var(--sp-3) var(--sp-4)", marginBottom: "var(--sp-4)", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius)", color: "#991b1b", fontSize: "0.875rem" }}>

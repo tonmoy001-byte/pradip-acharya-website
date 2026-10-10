@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import Link from "next/link"
 import SeoNoindex from "@/components/SeoNoindex"
+import { safeNextPath } from "@/lib/safe-redirect"
 
 export default function LoginPage() {
   const [tab, setTab] = useState<"signin" | "signup">("signin")
@@ -17,13 +18,15 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false)
   const { signIn, signUp, user, loading } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const nextPath = safeNextPath(searchParams?.get("next"), "/")
 
   // Redirect if already logged in
   useEffect(() => {
     if (!loading && user) {
-      router.push("/")
+      router.push(nextPath)
     }
-  }, [user, loading, router])
+  }, [user, loading, router, nextPath])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -37,7 +40,7 @@ export default function LoginPage() {
         if (result.error) {
           setError(result.error)
         } else {
-          router.push("/")
+          router.push(nextPath)
         }
       } else {
         if (password !== confirmPassword) {
@@ -57,7 +60,7 @@ export default function LoginPage() {
           // Save email and name for the verify page
           localStorage.setItem("pending_verification_email", email)
           if (name) localStorage.setItem("pending_verification_name", name)
-          router.push(`/verify?email=${encodeURIComponent(email)}`)
+          router.push(`/verify?email=${encodeURIComponent(email)}&next=${encodeURIComponent(nextPath)}`)
         } else if (result.message) {
           setMessage(result.message)
           setTab("signin")
@@ -125,6 +128,8 @@ export default function LoginPage() {
           অ্যাকাউন্ট তৈরি করুন
         </button>
       </div>
+
+      <input type="hidden" name="next" value={nextPath} />
 
       {error && (
         <div role="alert" style={{ padding: "var(--sp-3) var(--sp-4)", marginBottom: "var(--sp-4)", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius)", color: "#991b1b", fontSize: "0.875rem" }}>
@@ -201,7 +206,7 @@ export default function LoginPage() {
 
         {tab === "signin" && (
           <div style={{ textAlign: "right", marginBottom: "var(--sp-6)" }}>
-            <Link href="/forgot-password" style={{ color: "var(--color-muted)", fontSize: "0.875rem" }}>
+            <Link href={`/forgot-password?next=${encodeURIComponent(nextPath)}`} style={{ color: "var(--color-muted)", fontSize: "0.875rem" }}>
               পাসওয়ার্ড ভুলে গেছেন?
             </Link>
           </div>
@@ -225,7 +230,7 @@ export default function LoginPage() {
 
       {tab === "signin" && (
         <div style={{ textAlign: "center", marginTop: "var(--sp-4)" }}>
-          <Link href="/verify" style={{ color: "var(--color-muted)", fontSize: "0.875rem" }}>
+          <Link href={`/verify?next=${encodeURIComponent(nextPath)}`} style={{ color: "var(--color-muted)", fontSize: "0.875rem" }}>
             ইমেইল যাচাই করতে চান?
           </Link>
         </div>
