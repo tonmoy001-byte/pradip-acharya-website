@@ -1,53 +1,14 @@
 // app/api/payment/webhook/route.ts
 // POST: NagorikPay webhook (IPN) for server-to-server payment notifications.
-//
-// NagorikPay sends form-urlencoded fields (transactionId, status, …) and signs
-// the raw body with HMAC-SHA256: message = timestamp + "." + rawBody.
-// Signing key is NAGORIKPAY_WEBHOOK_SECRET when set, else the brand API key.
-// Always re-verifies payment status with the NagorikPay API before marking
-// orders as paid.
+// Thin wrapper around shared settlement logic with fail-closed signature check.
 
-import { createHmac, timingSafeEqual } from "node:crypto"
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/insforge-service"
 import { verifyNagorikPayPayment } from "@/lib/nagorikpay"
+import { verifyWebhookSignature } from "@/lib/nagorikpay-webhook"
+import { settleNagorikPayTransaction } from "@/lib/payment-settlement"
 
 export const dynamic = "force-dynamic"
-
-const REPLAY_WINDOW_SECONDS = 300
-
-/**
- * Verify NagorikPay HMAC-SHA256 webhook signature.
- * Signed message is `timestamp + "." + rawBody` (form-urlencoded bytes).
- */
-function verifyWebhookSignature(
-  rawBody: string,
-  timestampHeader: string | null,
-  signatureHeader: string | null,
-): boolean {
-  const secret = process.env.NAGORIKPAY_WEBHOOK_SECRET || process.env.NAGORIKPAY_API_KEY
-  if (!secret) {
-    console.warn("[webhook] no NAGORIKPAY_WEBHOOK_SECRET or API key — skipping signature verification")
-    return true
-  }
-  if (!timestampHeader || !signatureHeader) return false
-
-  const timestamp = Number(timestampHeader)
-  if (!Number.isFinite(timestamp)) return false
-  if (Math.abs(Date.now() / 1000 - timestamp) > REPLAY_WINDOW_SECONDS) return false
-
-  // Header format: sha256=<hex>
-  const givenHex = signatureHeader.startsWith("sha256=")
-    ? signatureHeader.slice("sha256=".length)
-    : signatureHeader
-
-  const expected = createHmac("sha256", secret)
-    .update(`${timestampHeader}.${rawBody}`)
-    .digest("hex")
-
-  if (givenHex.length !== expected.length) return false
-  return timingSafeEqual(Buffer.from(givenHex, "utf8"), Buffer.from(expected, "utf8"))
-}
 
 export async function POST(req: Request) {
   try {
@@ -55,9 +16,15 @@ export async function POST(req: Request) {
     const timestamp = req.headers.get("x-nagorikpay-timestamp")
     const signature = req.headers.get("x-nagorikpay-signature")
 
-    const isValid = verifyWebhookSignature(rawBody, timestamp, signature)
+    // Fail-closed: missing secret returns false (403)
+    const isValid = verifyWebhookSignature(
+      rawBody,
+      timestamp,
+      signature,
+      process.env.NAGORIKPAY_WEBHOOK_SECRET || process.env.NAGORIKPAY_API_KEY,
+    )
     if (!isValid) {
-      console.error("[webhook] Invalid signature")
+      console.error("[webhook] Invalid or missing signature")
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 })
     }
 
@@ -66,85 +33,55 @@ export async function POST(req: Request) {
     const transactionId = params.get("transactionId") || params.get("transaction_id")
 
     if (!transactionId) {
-      return NextResponse.json({ error: "transactionId required" }, { status: 400 })
+      // Malformed payload — permanent error, return 200 so gateway stops retrying
+      return NextResponse.json({ received: true, ignored: "missing_transactionId" }, { status: 200 })
     }
 
     // Verify with NagorikPay API (always re-verify, never trust the webhook payload alone)
-    const result = await verifyNagorikPayPayment(transactionId)
+    let result
+    try {
+      result = await verifyNagorikPayPayment(transactionId)
+    } catch (verifyErr) {
+      console.error("[webhook] NagorikPay verify unavailable:", verifyErr)
+      return NextResponse.json({ error: "verification_unavailable" }, { status: 500 })
+    }
 
     const client = createServiceClient()
-
-    // Find order
     const orderId = result.metadata?.order_id
+
     if (!orderId) {
-      return NextResponse.json({ error: "No order_id in metadata" }, { status: 400 })
+      // No order_id in metadata — permanent condition, return 200
+      return NextResponse.json({ received: true, ignored: "no_order_id_in_metadata" }, { status: 200 })
     }
 
-    const { data: orders, error: findError } = await client.database
-      .from("orders")
-      .select("id, payment_status, total")
-      .eq("id", orderId)
-      .limit(1)
+    const outcome = await settleNagorikPayTransaction({
+      client,
+      transactionId,
+      gateway: result,
+      orderId,
+    })
 
-    if (findError || !orders || orders.length === 0) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 })
+    // Map outcome to webhook response codes
+    switch (outcome.kind) {
+      case "paid":
+        return NextResponse.json({ received: true })
+      case "pending":
+        return NextResponse.json({ received: true })
+      case "failed":
+        return NextResponse.json({ received: true })
+      case "amount_mismatch":
+        // Permanent condition — log and return 200
+        console.error("[webhook] amount mismatch", { order_id: outcome.order_id })
+        return NextResponse.json({ received: true, ignored: "amount_mismatch" }, { status: 200 })
+      case "not_found":
+        // Permanent condition — log and return 200
+        console.error("[webhook] order not found", { transactionId })
+        return NextResponse.json({ received: true, ignored: "order_not_found" }, { status: 200 })
     }
-
-    const order = orders[0] as { id: string; payment_status: string; total: number }
-
-    if (order.payment_status === "paid") {
-      // Already settled. Fulfillment is idempotent, so this also covers the
-      // case where the first settlement granted nothing.
-      await client.database.rpc("fulfill_paid_order", {
-        p_order_id: order.id,
-        p_payment_reference: transactionId,
-      })
-      return NextResponse.json({ received: true })
-    }
-
-    if (result.status === "COMPLETED") {
-      // Verify payment amount matches order total
-      const paidAmount = Number(result.amount)
-      if (paidAmount < order.total) {
-        console.error(`[webhook] Payment amount mismatch: paid ${paidAmount}, expected ${order.total}`)
-        return NextResponse.json({ error: "Payment amount mismatch" }, { status: 400 })
-      }
-
-      // Update order
-      await client.database
-        .from("orders")
-        .update({
-          payment_status: "paid",
-          payment_reference: transactionId,
-          paid_at: new Date().toISOString(),
-        })
-        .eq("id", order.id)
-
-      // Log payment event
-      await client.database.from("payment_events").insert({
-        provider: "nagorikpay",
-        provider_transaction_id: transactionId,
-        order_id: order.id,
-        status: "completed",
-        verified: true,
-      })
-
-      // Release the files immediately — no admin approval in the loop. This is
-      // the server-to-server path, so it settles the order even if the buyer
-      // closes the tab before the redirect completes.
-      const { error: fulfillError } = await client.database.rpc("fulfill_paid_order", {
-        p_order_id: order.id,
-        p_payment_reference: transactionId,
-      })
-      if (fulfillError) {
-        console.error("[payment] fulfillment failed", { order_id: order.id })
-      }
-    }
-
-    return NextResponse.json({ received: true })
   } catch (err: unknown) {
     console.error("Webhook error:", err)
     const message = err instanceof Error ? err.message : "Webhook processing failed"
+    // Transient failures → 500 so gateway retries
     return NextResponse.json({ error: message }, { status: 500 })
   }
 }
