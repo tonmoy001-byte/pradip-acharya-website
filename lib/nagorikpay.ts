@@ -71,7 +71,10 @@ export async function createNagorikPayPayment(
   }
 
   if (data.status !== true || !data.payment_url) {
-    throw new Error(`NagorikPay create error: ${data.message || text}`)
+    // Surface the raw payload: gateway messages are short and easy to lose.
+    throw new Error(
+      `NagorikPay create failed: message=${JSON.stringify((data as { message?: unknown }).message)} status=${JSON.stringify(data.status)} payload=${text}`,
+    )
   }
 
   return data
