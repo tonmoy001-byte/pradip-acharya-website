@@ -32,6 +32,36 @@ npm run build && npm start
 
 No ESLint is configured; typecheck + tests + build are the quality gates.
 
+## Payments
+
+Flow: `/checkout` → `/api/orders` → `/api/payment/create` → NagorikPay gateway → `/payment/success` → `/api/payment/verify`; webhook in parallel at `/api/payment/webhook`.
+
+Statuses handled:
+- `COMPLETED` / `SUCCESS` → `paid` → order marked paid, grants issued immediately
+- `PENDING` → `payment_review` → polls `/api/payment/verify` every 5s (max 2min); second webhook completes it
+- `ERROR` / unknown → `failed` or verification error page (never shows as paid)
+
+`fulfill_paid_order` (migration `012`) creates `download_grants` for each digital `order_item`; idempotent and callable by service client.
+
+Testing a signed webhook locally:
+```bash
+node -e "
+const crypto = require('crypto')
+const ts = Math.floor(Date.now()/1000)
+const body = 'transactionId=TEST123&status=completed'
+const secret = process.env.NAGORIKPAY_WEBHOOK_SECRET
+console.log(ts)
+console.log('sha256=' + crypto.createHmac('sha256', secret).update(ts + '.' + body).digest('hex'))
+"
+# curl -X POST http://localhost:3000/api/payment/webhook \
+#   -H "Content-Type: application/x-www-form-urlencoded" \
+#   -H "X-NagorikPay-Timestamp: <ts>" \
+#   -H "X-NagorikPay-Signature: sha256=<sig>" \
+#   -d "transactionId=TEST123&status=completed"
+```
+
+Gor diagnostic: `node scripts/check-nagorikpay.mjs` (requires `NAGORIKPAY_API_KEY` and `SITE_URL`).
+
 ## Deploys (owner-run)
 
 Deploys go through `node scripts/deploy-direct.mjs` with an admin API key
