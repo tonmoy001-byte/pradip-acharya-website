@@ -71,10 +71,13 @@ export async function GET(req: Request) {
       // Already settled by the webhook or an earlier visit. Re-running
       // fulfillment is idempotent and repairs the case where the first
       // settlement marked the order paid but never issued the grants.
-      const { data: repaired } = await client.database.rpc("fulfill_paid_order", {
+      const { data: repaired, error: fulfillError } = await client.database.rpc("fulfill_paid_order", {
         p_order_id: order.id,
         p_payment_reference: transactionId,
       })
+      if (fulfillError) {
+        console.error("[payment] fulfillment failed", { order_id: order.id })
+      }
       return NextResponse.json({ status: "paid", order_id: order.id, ...(repaired as object) })
     }
 
@@ -116,7 +119,7 @@ export async function GET(req: Request) {
       })
 
       if (fulfillError) {
-        console.error("Fulfillment failed:", fulfillError)
+        console.error("[payment] fulfillment failed", { order_id: order.id })
         return NextResponse.json({ status: "paid", order_id: order.id, download_ready: false }, { status: 200 })
       }
 

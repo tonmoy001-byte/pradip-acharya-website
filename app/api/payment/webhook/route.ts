@@ -137,7 +137,7 @@ export async function POST(req: Request) {
         p_payment_reference: transactionId,
       })
       if (fulfillError) {
-        console.error("[webhook] Fulfillment failed:", fulfillError)
+        console.error("[payment] fulfillment failed", { order_id: order.id })
       }
     }
 
