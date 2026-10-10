@@ -20,7 +20,7 @@ export default function PaymentCancelPage() {
           আপনি পেমেন্ট প্রক্রিয়া বাতিল করেছেন।
         </p>
         <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)", fontSize: "0.875rem" }}>
-          চিন্তা করবেন না — আপনার অর্ডার সুরক্ষিত আছে। আপনি পরে আবার পেমেন্ট করতে পারবেন।
+          চিন্তা করবেন না — আপনার অর্ডার সুরক্ষিত আছে। আপনি <Link href="/account/orders" style={{ fontWeight: 600 }}>আমার অর্ডার থেকে পেমেন্ট করুন</Link>।
         </p>
         <div style={{ display: "flex", gap: "var(--sp-3)", flexWrap: "wrap" }}>
           {orderId && (

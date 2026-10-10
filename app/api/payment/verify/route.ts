@@ -16,6 +16,7 @@
 import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/insforge-service"
 import { verifyNagorikPayPayment } from "@/lib/nagorikpay"
+import { classifyGatewayStatus } from "@/lib/payment-status"
 
 export const dynamic = "force-dynamic"
 
@@ -42,7 +43,18 @@ export async function GET(req: Request) {
     }
 
     // Verify with NagorikPay
-    const result = await verifyNagorikPayPayment(transactionId)
+    let result
+    try {
+      result = await verifyNagorikPayPayment(transactionId)
+    } catch (verifyErr) {
+      console.error("NagorikPay verify unavailable:", verifyErr)
+      return NextResponse.json(
+        { status: "error", error: "verification_unavailable" },
+        { status: 502 },
+      )
+    }
+
+    const gatewayOutcome = classifyGatewayStatus(result.status)
 
     const client = createServiceClient()
 
@@ -81,8 +93,31 @@ export async function GET(req: Request) {
       return NextResponse.json({ status: "paid", order_id: order.id, ...(repaired as object) })
     }
 
-    if (result.status === "COMPLETED") {
-      // R7: Verify payment amount matches order total
+    if (gatewayOutcome === "pending") {
+      // Bank-transfer/QR payments start as PENDING and complete later.
+      // NagorikPay will send a second webhook when confirmed.
+      // Set payment_status to 'payment_review' only when still pending_payment
+      // to prevent a second payment from being started for this order (Task 4).
+      if (order.payment_status === "pending_payment") {
+        await client.database
+          .from("orders")
+          .update({
+            payment_status: "payment_review",
+            payment_reference: transactionId,
+          })
+          .eq("id", order.id)
+          .eq("payment_status", "pending_payment")
+      }
+      return NextResponse.json({ status: "pending", order_id: order.id })
+    }
+
+    if (gatewayOutcome === "failed") {
+      return NextResponse.json({ status: "failed", order_id: order.id })
+    }
+
+    // paid outcome
+    if (gatewayOutcome === "paid") {
+      // Verify payment amount matches order total
       const paidAmount = Number(result.amount)
       if (paidAmount < order.total) {
         console.error(`Payment amount mismatch: paid ${paidAmount}, expected ${order.total}`)
@@ -126,6 +161,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ status: "paid", order_id: order.id, ...(fulfillment as object) })
     }
 
+    // Should not reach here
     return NextResponse.json({ status: "failed", order_id: order.id })
   } catch (err: unknown) {
     console.error("Verify error:", err)
