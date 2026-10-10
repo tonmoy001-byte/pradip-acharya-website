@@ -89,7 +89,6 @@ function paymentMethodLabel(method: string | null) {
   if (!method) return "নির্ধারিত হয়নি"
   const map: Record<string, string> = {
     nagorikpay: "অনলাইন পেমেন্ট (bKash/Nagad/Rocket)",
-    rupantor: "অনলাইন পেমেন্ট (bKash/Nagad/Rocket)",
     nagad: "নগদ",
     rocket: "রকেট",
     card: "কার্ড",
