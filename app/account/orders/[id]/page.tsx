@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import { money } from "@/lib/format"
+import { isAllowedPaymentUrl } from "@/lib/payment-url"
 
 interface OrderItem {
   id: string
@@ -170,6 +171,34 @@ export default function OrderDetailPage() {
     (g) => new Date(g.expires_at) > new Date() && g.download_count < g.max_downloads,
   )
   const isPaid = order.payment_status === "paid"
+
+  const [payLoading, setPayLoading] = useState(false)
+  const [payError, setPayError] = useState("")
+
+  async function handlePay() {
+    if (!order) return
+    setPayLoading(true)
+    setPayError("")
+    try {
+      const res = await fetch("/api/payment/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ order_id: order.id }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "পেমেন্ট তৈরি ব্যর্থ")
+
+      if (!isAllowedPaymentUrl(data.payment_url)) {
+        throw new Error("অবৈধ পেমেন্ট URL")
+      }
+
+      window.location.href = data.payment_url
+    } catch (err: any) {
+      setPayError(err.message || "একটি ত্রুটি ঘটেছে। আবার চেষ্টা করুন।")
+      setPayLoading(false)
+    }
+  }
 
   return (
     <div>
@@ -488,10 +517,38 @@ export default function OrderDetailPage() {
               {paymentLabel(order.payment_status)}
             </span>
           </div>
+          {order.payment_status === "pending_payment" && !payLoading && (
+            <button
+              onClick={handlePay}
+              className="btn btn-primary"
+              style={{ width: "100%", marginTop: "var(--sp-3)" }}
+            >
+              এখনই পেমেন্ট করুন
+            </button>
+          )}
+          {order.payment_status === "pending_payment" && payLoading && (
+            <button className="btn btn-primary" style={{ width: "100%", marginTop: "var(--sp-3)" }} disabled>
+              লোড হচ্ছে...
+            </button>
+          )}
+          {payError && order.payment_status === "pending_payment" && (
+            <div style={{ marginTop: "var(--sp-3)", padding: "var(--sp-3)", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: "var(--radius-md)", fontSize: "0.8125rem", color: "#991b1b" }}>
+              {payError}
+            </div>
+          )}
           {order.payment_reference && (
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.9375rem" }}>
               <span style={{ color: "var(--ink-muted)" }}>ট্রানজেকশন রেফারেন্স</span>
               <span style={{ fontWeight: 500, fontFamily: "var(--font-body)" }}>{order.payment_reference}</span>
+            </div>
+          )}
+          {order.payment_status === "payment_review" && (
+            <div style={{
+              marginTop: "var(--sp-3)", padding: "var(--sp-3)",
+              background: "#fef3c7", border: "1px solid #fde68a",
+              borderRadius: "var(--radius-md)", fontSize: "0.8125rem", color: "#92400e",
+            }}>
+              আপনার পেমেন্ট নিশ্চিত হচ্ছে। নিশ্চিত হলেই ডাউনলোড নিজে থেকেই চালু হবে। কোনো অনুমোদনের প্রয়োজন নেই।
             </div>
           )}
           {order.payment_status === "pending_verification" && (
@@ -500,7 +557,7 @@ export default function OrderDetailPage() {
               background: "#fffbeb", border: "1px solid #fde68a",
               borderRadius: "var(--radius-md)", fontSize: "0.8125rem", color: "#92400e",
             }}>
-              আপনার পেমেন্ট যাচাই করা হচ্ছে। এতে ১-২ ঘন্টা সময় লাগতে পারে।
+              এই অর্ডারটি আগের পদ্ধতিতে করা হয়েছিল। সহায়তার জন্য যোগাযোগ করুন।
             </div>
           )}
           {order.paid_at && (

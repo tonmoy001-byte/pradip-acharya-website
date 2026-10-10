@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useAuth } from "@/lib/auth"
 import { money } from "@/lib/format"
 import SeoNoindex from "@/components/SeoNoindex"
+import { isAllowedPaymentUrl } from "@/lib/payment-url"
 
 interface OrderItem {
   id: string
@@ -340,6 +341,32 @@ export default function AccountOrdersPage() {
                       >
                         ডাউনলোড →
                       </Link>
+                    )}
+                    {order.payment_status === "pending_payment" && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch("/api/payment/create", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              credentials: "include",
+                              body: JSON.stringify({ order_id: order.id }),
+                            })
+                            const data = await res.json()
+                            if (!res.ok) throw new Error(data.error || "পেমেন্ট তৈরি ব্যর্থ")
+                            if (!isAllowedPaymentUrl(data.payment_url)) {
+                              throw new Error("অবৈধ পেমেন্ট URL")
+                            }
+                            window.location.href = data.payment_url
+                          } catch (err: any) {
+                            alert(err.message || "একটি ত্রুটি ঘটেছে। আবার চেষ্টা করুন।")
+                          }
+                        }}
+                        className="btn btn-primary"
+                        style={{ fontSize: "0.875rem" }}
+                      >
+                        এখনই পেমেন্ট করুন
+                      </button>
                     )}
                     <Link
                       href={`/account/orders/${order.id}`}
