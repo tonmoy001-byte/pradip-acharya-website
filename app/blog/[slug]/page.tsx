@@ -4,6 +4,7 @@ import type { Metadata } from "next"
 import { getCachedPostBySlug } from "@/lib/public-cache"
 import { pageMetadata } from "@/lib/seo"
 import { articleGraph } from "@/lib/structured-data"
+import { cleanPostHtml } from "@/lib/sanitize-html"
 import JsonLd from "@/components/JsonLd"
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -95,7 +96,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
             lineHeight: 1.85,
             color: "var(--ink)",
           }}
-          dangerouslySetInnerHTML={{ __html: post.content || "" }}
+          dangerouslySetInnerHTML={{ __html: cleanPostHtml(post.content || "") }}
         />
 
         <footer style={{ marginTop: "var(--sp-12)", paddingTop: "var(--sp-6)", borderTop: "1px solid var(--border)" }}>

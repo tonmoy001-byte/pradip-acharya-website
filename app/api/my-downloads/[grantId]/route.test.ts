@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 const requireUser = vi.fn()
 const storageDownload = vi.fn()
+const consumeDownload = vi.fn()
 
 // Table-scoped query builders. Each returns a chainable stub whose terminal
 // method is `limit` (and, for `orders` in this route, nothing else).
@@ -69,6 +70,7 @@ vi.mock("@/lib/insforge-server", () => ({
   createServerClient: async () => ({
     database: {
       from: (table: string) => makeBuilder(table),
+      rpc: (...args: any[]) => consumeDownload(...args),
     },
     storage: {
       from: () => ({ download: (key: string) => storageDownload(key) }),
@@ -124,6 +126,10 @@ beforeEach(() => {
     data: new Blob([new Uint8Array([1, 2, 3])], { type: "application/pdf" }),
     error: null,
   })
+  consumeDownload.mockResolvedValue({
+    data: { storage_key: "ebooks/1700-abc123.pdf", download_count: 1, max_downloads: 3 },
+    error: null,
+  })
 })
 
 describe("GET /api/my-downloads/[grantId]", () => {
@@ -134,6 +140,46 @@ describe("GET /api/my-downloads/[grantId]", () => {
     expect(res.headers.get("Content-Disposition")).toContain("attachment")
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff")
     expect(storageDownload).toHaveBeenCalledWith("ebooks/1700-abc123.pdf")
+    expect(consumeDownload).toHaveBeenCalledWith("consume_download", {
+      p_grant_id: "grant-1",
+    })
+  })
+
+  it("fetches the file before atomically consuming the download", async () => {
+    // A storage failure must never cost the customer a download, so
+    // the PDF is fetched first and the counter only moves afterwards.
+    const res = await call()
+    expect(res.status).toBe(200)
+    expect(storageDownload.mock.invocationCallOrder[0]).toBeLessThan(
+      consumeDownload.mock.invocationCallOrder[0],
+    )
+  })
+
+  it("refuses when the atomic consume fails (limit hit concurrently)", async () => {
+    consumeDownload.mockResolvedValue({
+      data: null,
+      error: { message: "Download limit reached" },
+    })
+    const res = await call()
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toMatch(/Maximum download limit reached or link expired/)
+  })
+
+  it("refuses when the atomic consume returns no result", async () => {
+    consumeDownload.mockResolvedValue({ data: null, error: null })
+    const res = await call()
+    expect(res.status).toBe(403)
+  })
+
+  it("returns 500 (not 403) when the consume call itself fails", async () => {
+    // A rejected RPC is an infrastructure failure, not a business
+    // rejection: no download was counted and nothing was served.
+    consumeDownload.mockRejectedValue(new Error("db down"))
+    const res = await call()
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBe("Something went wrong. Please try again.")
   })
 
   it("refuses a grant that belongs to another customer", async () => {

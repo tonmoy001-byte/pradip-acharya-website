@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { serverError } from "@/lib/http-errors"
 
 export const dynamic = "force-dynamic"
 
@@ -21,7 +22,7 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false })
 
     if (ordersError) {
-      return NextResponse.json({ error: ordersError.message || "Failed to fetch orders" }, { status: 500, headers: NO_STORE })
+      return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500, headers: NO_STORE })
     }
 
     if (!orders || orders.length === 0) {
@@ -40,8 +41,8 @@ export async function GET(req: Request) {
     )
 
     return NextResponse.json({ data: ordersWithItems }, { headers: NO_STORE })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return new Response(err.body, { status: err.status, headers: { ...Object.fromEntries(err.headers), "Cache-Control": "no-store" } })
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500, headers: NO_STORE })
+    return serverError("my-orders", err, { headers: NO_STORE })
   }
 }

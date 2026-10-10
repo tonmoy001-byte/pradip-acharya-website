@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
 import { createNagorikPayPayment, formatNagorikPayAmount } from "@/lib/nagorikpay"
 import { SITE_URL } from "@/lib/seo"
+import { assertSameOrigin } from "@/lib/origin-check"
 
 export const dynamic = "force-dynamic"
 
@@ -19,6 +20,7 @@ interface OrderRow {
 
 export async function POST(req: Request) {
   try {
+    assertSameOrigin(req)
     const user = await requireUser()
     const client = await createServerClient()
     const body = await req.json()
@@ -49,6 +51,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Order already processed" }, { status: 400 })
     }
 
+    // Free orders never reach the gateway — create_ebook_order settles
+    // them immediately. If one still gets here, something is wrong.
+    if (!(Number(orderRow.total) > 0)) {
+      return NextResponse.json({ error: "Nothing to pay for this order" }, { status: 400 })
+    }
+
     // SITE_URL rejects localhost/non-HTTPS values from the env (lib/seo.ts),
     // so a forwarded dev value can never reach the gateway as a return URL.
     const siteUrl = SITE_URL
@@ -67,15 +75,10 @@ export async function POST(req: Request) {
       metadata: { order_id, user_id: user.id },
     })
 
-    // Update order with payment method
-    await client.database
-      .from("orders")
-      .update({ payment_method: "nagorikpay" })
-      .eq("id", order_id)
-
     return NextResponse.json({ payment_url: payment.payment_url })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    console.error("[payment] create failed:", err)
+    return NextResponse.json({ error: "Payment could not be started. Please try again." }, { status: 502 })
   }
 }

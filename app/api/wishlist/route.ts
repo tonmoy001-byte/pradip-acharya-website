@@ -5,6 +5,8 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { serverError } from "@/lib/http-errors"
+import { assertSameOrigin } from "@/lib/origin-check"
 
 export const dynamic = "force-dynamic"
 
@@ -22,18 +24,19 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false })
 
     if (error) {
-      return NextResponse.json({ error: error.message || "Failed to fetch wishlist" }, { status: 500, headers: NO_STORE })
+      return NextResponse.json({ error: "Failed to fetch wishlist" }, { status: 500, headers: NO_STORE })
     }
 
     return NextResponse.json({ data }, { headers: NO_STORE })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return new Response(err.body, { status: err.status, headers: { ...Object.fromEntries(err.headers), "Cache-Control": "no-store" } })
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500, headers: NO_STORE })
+    return serverError("wishlist GET", err, { headers: NO_STORE })
   }
 }
 
 export async function POST(req: Request) {
   try {
+    assertSameOrigin(req)
     const user = await requireUser()
     const client = await createServerClient()
 
@@ -49,12 +52,12 @@ export async function POST(req: Request) {
     })
 
     if (error) {
-      return NextResponse.json({ error: error.message || "Failed to toggle wishlist" }, { status: 500, headers: NO_STORE })
+      return NextResponse.json({ error: "Failed to toggle wishlist" }, { status: 500, headers: NO_STORE })
     }
 
     return NextResponse.json({ data }, { headers: NO_STORE })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return new Response(err.body, { status: err.status, headers: { ...Object.fromEntries(err.headers), "Cache-Control": "no-store" } })
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500, headers: NO_STORE })
+    return serverError("wishlist POST", err, { headers: NO_STORE })
   }
 }

@@ -3,6 +3,8 @@ import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
 import { invalidateBooks } from "@/lib/public-cache"
 import { EBOOK_DELIVERY_TYPE, BOOK_CATEGORY, BOOK_CATEGORY_LABEL } from "@/lib/data"
+import { serverError } from "@/lib/http-errors"
+import { assertSameOrigin } from "@/lib/origin-check"
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -17,7 +19,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       .single()
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 404 })
+      console.error("[admin book] fetch failed:", error.message)
+      return NextResponse.json({ error: "Book not found" }, { status: 404 })
     }
 
     // Fetch digital assets and map to formats
@@ -40,14 +43,15 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }))
 
     return NextResponse.json({ book: { ...data, book_formats: formatsWithAssets } })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin books GET", err)
   }
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    assertSameOrigin(req)
     await requireAdmin()
     const { id } = await params
     const body = await req.json()
@@ -129,7 +133,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error("[admin book] update failed:", error.message)
+      return NextResponse.json({ error: "Failed to update book" }, { status: 500 })
     }
 
     // Re-attach the previously stored PDF to the freshly created ebook format.
@@ -176,19 +181,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       .eq("id", id)
 
     if (updateErr) {
-      return NextResponse.json({ error: updateErr.message }, { status: 500 })
+      console.error("[admin book] extra fields update failed:", updateErr.message)
+      return NextResponse.json({ error: "Failed to update book" }, { status: 500 })
     }
 
     invalidateBooks(id)
     return NextResponse.json({ success: true })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin books PUT", err)
   }
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    assertSameOrigin(req)
     await requireAdmin()
     const { id } = await params
     const client = await createServerClient()
@@ -198,21 +205,22 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     })
 
     if (error) {
-      const message = error.message || "Delete failed"
+      const message = error.message || ""
+      console.error("[admin book] delete failed:", message)
       if (message.includes("Book not found")) {
-        return NextResponse.json({ error: message }, { status: 404 })
+        return NextResponse.json({ error: "Book not found" }, { status: 404 })
       }
       // Business rule failures (orders / digital assets still reference the book)
       if (message.includes("Cannot delete book")) {
-        return NextResponse.json({ error: message }, { status: 409 })
+        return NextResponse.json({ error: "Cannot delete book while it has orders or digital assets" }, { status: 409 })
       }
-      return NextResponse.json({ error: message }, { status: 500 })
+      return NextResponse.json({ error: "Delete failed" }, { status: 500 })
     }
 
     invalidateBooks(id)
     return NextResponse.json({ success: true })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin books DELETE", err)
   }
 }

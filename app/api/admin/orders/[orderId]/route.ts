@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { serverError } from "@/lib/http-errors"
 
-export async function GET(req: Request, { params }: { params: Promise<{ orderId: string }> }) {  try {
+export async function GET(req: Request, { params }: { params: Promise<{ orderId: string }> }) {
+  try {
     await requireAdmin()
     const { orderId } = await params
     const client = await createServerClient()
@@ -35,9 +37,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ orderId:
       .eq("order_id", orderId)
 
     return NextResponse.json({ order: { ...order, profile, download_grants: grants || [] } })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin order detail", err)
   }
 }
 

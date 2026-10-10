@@ -66,23 +66,29 @@ export async function createNagorikPayPayment(
 
   const text = await res.text()
   if (!res.ok) {
-    throw new Error(`NagorikPay create failed: ${res.status} ${text}`)
+    // Gateway error bodies can contain stack fragments and internal
+    // detail. Log them server-side; throw a short, safe message.
+    console.error("[nagorikpay] create HTTP error", { status: res.status, body: text })
+    throw new Error(`NagorikPay create failed: HTTP ${res.status}`)
   }
 
   let data: NagorikPayCreateResponse
   try {
     data = JSON.parse(text)
   } catch {
-    throw new Error(`NagorikPay create returned non-JSON: ${text}`)
+    console.error("[nagorikpay] create returned non-JSON", { body: text })
+    throw new Error("NagorikPay create failed: non-JSON response")
   }
 
   if (!data.payment_url || typeof data.payment_url !== "string") {
     // Treat any non-empty payment_url as success — the gateway sometimes
-    // returns status as 1/"true" rather than boolean true. On failure,
-    // surface the raw payload: gateway messages are short and easy to lose.
-    throw new Error(
-      `NagorikPay create failed: message=${JSON.stringify((data as { message?: unknown }).message)} status=${JSON.stringify(data.status)} payload=${text}`,
-    )
+    // returns status as 1/"true" rather than boolean true.
+    console.error("[nagorikpay] create returned no payment_url", {
+      status: data.status,
+      message: (data as { message?: unknown }).message,
+      payload: text,
+    })
+    throw new Error("NagorikPay create failed: no payment_url returned")
   }
 
   return data
@@ -106,19 +112,22 @@ export async function verifyNagorikPayPayment(
 
   const text = await res.text()
   if (!res.ok) {
-    throw new Error(`NagorikPay verify failed: ${res.status} ${text}`)
+    console.error("[nagorikpay] verify HTTP error", { status: res.status, body: text })
+    throw new Error(`NagorikPay verify failed: HTTP ${res.status}`)
   }
 
   let data: NagorikPayVerifyResponse | { status: false; message: string }
   try {
     data = JSON.parse(text)
   } catch {
-    throw new Error(`NagorikPay verify returned non-JSON: ${text}`)
+    console.error("[nagorikpay] verify returned non-JSON", { body: text })
+    throw new Error("NagorikPay verify failed: non-JSON response")
   }
 
   if ((data as { status: boolean }).status === false) {
     const message = (data as { message?: string }).message || text
-    throw new Error(`NagorikPay verify error: ${message}`)
+    console.error("[nagorikpay] verify error", { message })
+    throw new Error("NagorikPay verify failed")
   }
 
   return data as NagorikPayVerifyResponse

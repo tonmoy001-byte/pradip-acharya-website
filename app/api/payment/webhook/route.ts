@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/insforge-service"
 import { verifyNagorikPayPayment } from "@/lib/nagorikpay"
 import { verifyWebhookSignature } from "@/lib/nagorikpay-webhook"
 import { settleNagorikPayTransaction } from "@/lib/payment-settlement"
+import { serverError } from "@/lib/http-errors"
 
 export const dynamic = "force-dynamic"
 
@@ -28,12 +29,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 })
     }
 
-    // Form-urlencoded payload: transactionId, status, paymentMethod, …
+    // Form-urlencoded payload: transactionId, status, paymentMethod, ...
     const params = new URLSearchParams(rawBody)
     const transactionId = params.get("transactionId") || params.get("transaction_id")
 
     if (!transactionId) {
-      // Malformed payload — permanent error, return 200 so gateway stops retrying
+      // Malformed payload - permanent error, return 200 so gateway stops retrying
       return NextResponse.json({ received: true, ignored: "missing_transactionId" }, { status: 200 })
     }
 
@@ -50,7 +51,7 @@ export async function POST(req: Request) {
     const orderId = result.metadata?.order_id
 
     if (!orderId) {
-      // No order_id in metadata — permanent condition, return 200
+      // No order_id in metadata - permanent condition, return 200
       return NextResponse.json({ received: true, ignored: "no_order_id_in_metadata" }, { status: 200 })
     }
 
@@ -70,18 +71,16 @@ export async function POST(req: Request) {
       case "failed":
         return NextResponse.json({ received: true })
       case "amount_mismatch":
-        // Permanent condition — log and return 200
+        // Permanent condition - log and return 200
         console.error("[webhook] amount mismatch", { order_id: outcome.order_id })
         return NextResponse.json({ received: true, ignored: "amount_mismatch" }, { status: 200 })
       case "not_found":
-        // Permanent condition — log and return 200
+        // Permanent condition - log and return 200
         console.error("[webhook] order not found", { transactionId })
         return NextResponse.json({ received: true, ignored: "order_not_found" }, { status: 200 })
     }
   } catch (err: unknown) {
-    console.error("Webhook error:", err)
-    const message = err instanceof Error ? err.message : "Webhook processing failed"
-    // Transient failures → 500 so gateway retries
-    return NextResponse.json({ error: message }, { status: 500 })
+    // Transient failures - 500 so gateway retries. Log the reason server-side only.
+    return serverError("payment webhook", err)
   }
 }
