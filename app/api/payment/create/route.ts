@@ -5,6 +5,7 @@ import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
 import { createNagorikPayPayment, formatNagorikPayAmount } from "@/lib/nagorikpay"
+import { SITE_URL } from "@/lib/seo"
 
 export const dynamic = "force-dynamic"
 
@@ -48,9 +49,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Order already processed" }, { status: 400 })
     }
 
-    // NOTE: fallback intentionally left as the legacy host until the owner
-    // confirms the gateway allows the canonical host. See brand form notes.
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://cpd9mnqf.insforge.site"
+    // SITE_URL rejects localhost/non-HTTPS values from the env (lib/seo.ts),
+    // so a forwarded dev value can never reach the gateway as a return URL.
+    const siteUrl = SITE_URL
+
+    console.info("[payment] create", { returnHost: new URL(siteUrl).host, order_id })
 
     // NagorikPay appends its own redirect query params (transactionId, status, …)
     // to success_url — do not embed a RupantorPay-style {transaction_id} placeholder.
@@ -61,10 +64,7 @@ export async function POST(req: Request) {
       success_url: `${siteUrl}/payment/success`,
       cancel_url: `${siteUrl}/payment/cancel?order_id=${encodeURIComponent(order_id)}`,
       webhook_url: `${siteUrl}/api/payment/webhook`,
-      metadata: {
-        order_id: order_id,
-        user_id: user.id,
-      },
+      metadata: { order_id, user_id: user.id },
     })
 
     // Update order with payment method

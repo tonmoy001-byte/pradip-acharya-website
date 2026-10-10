@@ -2,9 +2,15 @@
 // NagorikPay API client for payment creation and verification.
 // Docs: https://nagorikpay.com/developers/docs
 
-const NAGORIKPAY_API_KEY = process.env.NAGORIKPAY_API_KEY!
 const NAGORIKPAY_BASE_URL =
   process.env.NAGORIKPAY_BASE_URL || "https://secure-pay.nagorikpay.com/api/payment"
+
+/** Resolve the API key at call time so a missing key fails loudly, not as `API-KEY: undefined`. */
+function apiKey(): string {
+  const key = process.env.NAGORIKPAY_API_KEY
+  if (!key) throw new Error("NAGORIKPAY_API_KEY is not set")
+  return key
+}
 
 interface NagorikPayCreatePayload {
   cus_name: string
@@ -53,7 +59,7 @@ export async function createNagorikPayPayment(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "API-KEY": NAGORIKPAY_API_KEY,
+      "API-KEY": apiKey(),
     },
     body: JSON.stringify(payload),
   })
@@ -93,7 +99,7 @@ export async function verifyNagorikPayPayment(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "API-KEY": NAGORIKPAY_API_KEY,
+      "API-KEY": apiKey(),
     },
     body: JSON.stringify({ transaction_id: transactionId }),
   })
