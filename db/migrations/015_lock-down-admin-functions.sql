@@ -54,6 +54,18 @@ ALTER FUNCTION public.admin_update_book(
 
 ALTER FUNCTION public.admin_delete_book(text) RENAME TO admin_delete_book_impl;
 
+ALTER FUNCTION public.admin_create_post(
+  text, text, text, text, text, text, text, text[], text, text
+) RENAME TO admin_create_post_impl;
+
+ALTER FUNCTION public.admin_update_post(
+  uuid, text, text, text, text, text, text, text, text[], text, text
+) RENAME TO admin_update_post_impl;
+
+ALTER FUNCTION public.admin_delete_post(uuid) RENAME TO admin_delete_post_impl;
+
+ALTER FUNCTION public.admin_upsert_setting(text, jsonb, text) RENAME TO admin_upsert_setting_impl;
+
 -- 3) Public-facing functions with the same signatures that check admin first.
 CREATE FUNCTION public.admin_create_book(
   p_title text, p_author text, p_category text, p_subcategory text,
@@ -108,6 +120,68 @@ AS $$
 BEGIN
   PERFORM public.require_admin();
   PERFORM public.admin_delete_book_impl(p_book_id);
+END;
+$$;
+
+CREATE FUNCTION public.admin_create_post(
+  p_title text, p_slug text, p_content text, p_excerpt text,
+  p_cover_image text, p_post_type text, p_status text,
+  p_tags text[], p_meta_title text, p_meta_description text
+)
+RETURNS uuid
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  PERFORM public.require_admin();
+  RETURN public.admin_create_post_impl(
+    p_title, p_slug, p_content, p_excerpt, p_cover_image,
+    p_post_type, p_status, p_tags, p_meta_title, p_meta_description
+  );
+END;
+$$;
+
+CREATE FUNCTION public.admin_update_post(
+  p_post_id uuid, p_title text, p_slug text, p_content text,
+  p_excerpt text, p_cover_image text, p_post_type text,
+  p_status text, p_tags text[], p_meta_title text, p_meta_description text
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  PERFORM public.require_admin();
+  PERFORM public.admin_update_post_impl(
+    p_post_id, p_title, p_slug, p_content, p_excerpt, p_cover_image,
+    p_post_type, p_status, p_tags, p_meta_title, p_meta_description
+  );
+END;
+$$;
+
+CREATE FUNCTION public.admin_delete_post(p_post_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  PERFORM public.require_admin();
+  PERFORM public.admin_delete_post_impl(p_post_id);
+END;
+$$;
+
+CREATE FUNCTION public.admin_upsert_setting(p_key text, p_value jsonb, p_category text)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+BEGIN
+  PERFORM public.require_admin();
+  PERFORM public.admin_upsert_setting_impl(p_key, p_value, p_category);
 END;
 $$;
 
@@ -223,13 +297,21 @@ DECLARE
     'public.admin_create_book_impl(text,text,text,text,text,text,text,text,text,boolean,boolean,boolean,boolean,jsonb)',
     'public.admin_update_book_impl(text,text,text,text,text,text,text,text,text,text,boolean,boolean,boolean,boolean,jsonb)',
     'public.admin_delete_book_impl(text)',
+    'public.admin_create_post_impl(text,text,text,text,text,text,text,text,text[],text,text)',
+    'public.admin_update_post_impl(uuid,text,text,text,text,text,text,text,text[],text,text)',
+    'public.admin_delete_post_impl(uuid)',
+    'public.admin_upsert_setting_impl(text,jsonb,text)',
     'public.fulfill_paid_order(uuid,text)',
     'public.create_order_from_cart(jsonb,jsonb,jsonb)'
   ];
   wrappers text[] := ARRAY[
     'public.admin_create_book(text,text,text,text,text,text,text,text,text,boolean,boolean,boolean,boolean,jsonb)',
     'public.admin_update_book(text,text,text,text,text,text,text,text,text,text,boolean,boolean,boolean,boolean,jsonb)',
-    'public.admin_delete_book(text)'
+    'public.admin_delete_book(text)',
+    'public.admin_create_post(text,text,text,text,text,text,text,text,text[],text,text)',
+    'public.admin_update_post(uuid,text,text,text,text,text,text,text,text[],text,text)',
+    'public.admin_delete_post(uuid)',
+    'public.admin_upsert_setting(text,jsonb,text)'
   ];
   fn text;
   r  text;

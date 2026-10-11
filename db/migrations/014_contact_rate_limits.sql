@@ -18,3 +18,16 @@ CREATE TABLE IF NOT EXISTS public.contact_rate_limits (
 
 CREATE INDEX IF NOT EXISTS contact_rate_limits_ip_hash_submitted_at_idx
   ON public.contact_rate_limits (ip_hash, submitted_at);
+
+-- The table holds IP hashes, which are personal data. Enable RLS and deny
+-- everyone except the service role (which the route reaches through the
+-- admin/service client). Without this, an authenticated user could read
+-- every submission and see who has been rate-limited.
+ALTER TABLE public.contact_rate_limits ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY contact_rate_limits_service_only
+  ON public.contact_rate_limits
+  FOR ALL
+  TO authenticated
+  USING (false)
+  WITH CHECK (false);

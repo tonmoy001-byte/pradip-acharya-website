@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
-import { sanitizePostgREST, quotePostgrestValue } from "@/lib/sanitize-postgrest"
+import { quotePostgrestValue } from "@/lib/sanitize-postgrest"
 import { invalidatePosts } from "@/lib/public-cache"
 import { serverError } from "@/lib/http-errors"
 import { cleanPostHtml } from "@/lib/sanitize-html"

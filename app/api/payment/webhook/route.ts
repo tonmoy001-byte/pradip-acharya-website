@@ -17,13 +17,21 @@ export async function POST(req: Request) {
     const timestamp = req.headers.get("x-nagorikpay-timestamp")
     const signature = req.headers.get("x-nagorikpay-signature")
 
-    // Fail-closed: missing secret returns false (403)
+    // Fail-closed: missing secret returns false (403).
+    // NAGORIKPAY_WEBHOOK_SECRET is set in the deployment env. The API-key fallback
+    // only triggers when the secret is unset, so it is dead in production; if it
+    // ever fires, the panel secret has stopped matching and real payments will
+    // stop settling through the webhook until it is regenerated.
+    const webhookSecret = process.env.NAGORIKPAY_WEBHOOK_SECRET
     const isValid = verifyWebhookSignature(
       rawBody,
       timestamp,
       signature,
-      process.env.NAGORIKPAY_WEBHOOK_SECRET || process.env.NAGORIKPAY_API_KEY,
+      webhookSecret || process.env.NAGORIKPAY_API_KEY,
     )
+    if (!webhookSecret) {
+      console.error("[webhook] NAGORIKPAY_WEBHOOK_SECRET unset — falling back to API key")
+    }
     if (!isValid) {
       console.error("[webhook] Invalid or missing signature")
       return NextResponse.json({ error: "Invalid signature" }, { status: 403 })
