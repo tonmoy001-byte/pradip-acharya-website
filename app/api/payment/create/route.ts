@@ -65,6 +65,18 @@ export async function POST(req: Request) {
 
     // NagorikPay appends its own redirect query params (transactionId, status, …)
     // to success_url — do not embed a RupantorPay-style {transaction_id} placeholder.
+    // TEMPORARY DEBUG LOGGING — capture the exact payload sent to the gateway.
+    console.info("[payment] create payload", {
+      order_id,
+      cus_name: orderRow.contact.name,
+      cus_email: orderRow.contact.email,
+      amount: formatNagorikPayAmount(orderRow.total),
+      success_url: `${siteUrl}/payment/success`,
+      cancel_url: `${siteUrl}/payment/cancel?order_id=${encodeURIComponent(order_id)}`,
+      webhook_url: `${siteUrl}/api/payment/webhook`,
+      metadata: { order_id, user_id: user.id },
+    })
+
     const payment = await createNagorikPayPayment({
       cus_name: orderRow.contact.name,
       cus_email: orderRow.contact.email,

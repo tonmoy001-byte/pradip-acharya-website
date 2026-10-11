@@ -65,6 +65,16 @@ export async function createNagorikPayPayment(
   })
 
   const text = await res.text()
+
+  // TEMPORARY DEBUG LOGGING — capture the full gateway response so the
+  // payment flow failure can be diagnosed. Remove once confirmed working.
+  console.info("[nagorikpay] create response", {
+    status: res.status,
+    ok: res.ok,
+    headers: Object.fromEntries(res.headers.entries()),
+    body: text,
+  })
+
   if (!res.ok) {
     // Gateway error bodies can contain stack fragments and internal
     // detail. Log them server-side; throw a short, safe message.

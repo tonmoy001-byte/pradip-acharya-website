@@ -24,17 +24,37 @@ function deny(): never {
 /** Throws a 403 Response if a state-changing request comes from another site. */
 export function assertSameOrigin(req: Request): void {
   const fetchSite = req.headers.get("sec-fetch-site")
-  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") deny()
-
   const origin = req.headers.get("origin")
+  const forwardedHost = req.headers.get("x-forwarded-host")
+  const host = req.headers.get("host")
+
+  // TEMPORARY DEBUG LOGGING — capture the exact header values so the 403
+  // source can be identified. Remove once confirmed working.
+  console.info("[origin-check] headers", {
+    secFetchSite: fetchSite,
+    origin,
+    xForwardedHost: forwardedHost,
+    host,
+    url: req.url,
+  })
+
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") {
+    console.error("[origin-check] DENY: sec-fetch-site", { fetchSite })
+    deny()
+  }
+
   if (origin) {
-    const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host")
     let originHost = ""
     try {
       originHost = new URL(origin).host
     } catch {
+      console.error("[origin-check] DENY: unparseable origin", { origin })
       deny()
     }
-    if (!host || originHost !== host) deny()
+    const effectiveHost = forwardedHost ?? host
+    if (!effectiveHost || originHost !== effectiveHost) {
+      console.error("[origin-check] DENY: origin mismatch", { originHost, effectiveHost, forwardedHost, host })
+      deny()
+    }
   }
 }
