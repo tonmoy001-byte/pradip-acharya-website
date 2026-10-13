@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { serverError } from "@/lib/http-errors"
 
 export const dynamic = "force-dynamic"
 
@@ -34,7 +35,7 @@ export async function GET(req: Request, { params }: RouteParams) {
       .eq("order_id", id)
 
     if (itemsError) {
-      return NextResponse.json({ error: itemsError.message || "Failed to fetch order items" }, { status: 500, headers: NO_STORE })
+      return NextResponse.json({ error: "Failed to fetch order items" }, { status: 500, headers: NO_STORE })
     }
 
     // Download grant state so the customer can see approval / availability.
@@ -47,8 +48,8 @@ export async function GET(req: Request, { params }: RouteParams) {
       { data: { ...order, items: items || [], download_grants: grants || [] } },
       { headers: NO_STORE },
     )
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return new Response(err.body, { status: err.status, headers: { ...Object.fromEntries(err.headers), "Cache-Control": "no-store" } })
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500, headers: NO_STORE })
+    return serverError("my-order detail", err, { headers: NO_STORE })
   }
 }

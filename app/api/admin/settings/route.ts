@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
 import { invalidateSettings } from "@/lib/public-cache"
+import { serverError } from "@/lib/http-errors"
+import { assertSameOrigin } from "@/lib/origin-check"
 
 export async function GET() {
   try {
@@ -14,38 +16,48 @@ export async function GET() {
       .order("category", { ascending: true })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error("[admin settings] list failed:", error.message)
+      return NextResponse.json({ error: "Failed to fetch settings" }, { status: 500 })
     }
 
     return NextResponse.json({ settings: data || [] })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin settings GET", err)
   }
 }
 
 export async function PUT(req: Request) {
   try {
+    assertSameOrigin(req)
     await requireAdmin()
     const body = await req.json()
     const client = await createServerClient()
 
+    const failed: string[] = []
     for (const [key, entry] of Object.entries(body.settings || {})) {
-      const setting = entry as { value: any; category: string }
+      const setting = entry as { value: unknown; category?: string }
       const { error } = await client.database.rpc("admin_upsert_setting", {
         p_key: key,
         p_value: setting.value,
         p_category: setting.category || "general",
       })
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        console.error("[settings] save failed:", key, error.message)
+        failed.push(key)
       }
     }
 
     invalidateSettings()
+    if (failed.length) {
+      return NextResponse.json(
+        { error: "Some settings could not be saved", failed },
+        { status: 207 },
+      )
+    }
     return NextResponse.json({ success: true })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin settings PUT", err)
   }
 }

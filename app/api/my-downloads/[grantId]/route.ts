@@ -16,6 +16,7 @@ import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
 import { EBOOK_DELIVERY_TYPE } from "@/lib/data"
+import { serverError } from "@/lib/http-errors"
 
 export const dynamic = "force-dynamic"
 
@@ -113,33 +114,8 @@ export async function GET(req: Request, { params }: RouteParams) {
       return denied(404, "No file attached to this order")
     }
 
-    // 6. Atomically increment download count
-    // NOTE: PostgREST SDK doesn't support `SET col = col + 1` syntax.
-    // True atomicity requires a DB RPC function (CREATE FUNCTION ... BEGIN UPDATE ... END).
-    // For now, we re-read the grant right before incrementing to minimize the race window.
-    const { data: freshGrants } = await client.database
-      .from("download_grants")
-      .select("download_count, max_downloads")
-      .eq("id", grantId)
-      .limit(1)
-    const freshGrant = freshGrants?.[0] as any
-    if (freshGrant && freshGrant.download_count >= freshGrant.max_downloads) {
-      return denied(403, "Maximum download limit reached")
-    }
-
-    const { error: updateError } = await client.database
-      .from("download_grants")
-      .update({
-        download_count: (freshGrant?.download_count ?? grant.download_count) + 1,
-        last_downloaded_at: new Date().toISOString(),
-      })
-      .eq("id", grantId)
-
-    if (updateError) {
-      console.error("Failed to increment download count:", updateError)
-    }
-
-    // 7. Stream the PDF from the private storage bucket
+    // 6. Fetch the file first, so a storage failure never costs
+    //    the customer a download.
     const { data: blob, error: storageError } = await client.storage
       .from("digital-books")
       .download(storageKey)
@@ -149,7 +125,26 @@ export async function GET(req: Request, { params }: RouteParams) {
       return denied(404, "File not found in storage")
     }
 
-    // 8. Return the PDF
+    // 7. Atomically use up one download. consume_download() locks the
+    //    grant, re-checks ownership / expiry / paid status / limit and
+    //    increments in one statement — two simultaneous requests on the
+    //    last download cannot both succeed.
+    const { data: consumed, error: consumeError } = await client.database.rpc(
+      "consume_download",
+      { p_grant_id: grantId },
+    )
+    if (consumeError) {
+      // The function raises for every rejection reason (limit, expiry,
+      // revocation, unpaid order, ownership); log the real cause
+      // server-side and return a safe generic message.
+      console.error("consume_download failed:", consumeError.message)
+      return denied(403, "Maximum download limit reached or link expired")
+    }
+    if (!consumed) {
+      return denied(403, "Maximum download limit reached or link expired")
+    }
+
+    // 8. Return the PDF (unchanged)
     const filename = storageKey.split("/").pop() || "ebook.pdf"
 
     return new Response(blob, {
@@ -162,16 +157,13 @@ export async function GET(req: Request, { params }: RouteParams) {
         Pragma: "no-cache",
       },
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) {
       return new Response(err.body, {
         status: err.status,
         headers: { ...Object.fromEntries(err.headers), ...NO_STORE },
       })
     }
-    return NextResponse.json(
-      { error: err.message || "Internal server error" },
-      { status: 500, headers: NO_STORE },
-    )
+    return serverError("download grant", err, { headers: NO_STORE })
   }
 }

@@ -26,13 +26,18 @@ export async function signIn(email: string, password: string) {
     const result = await auth.signInWithPassword({ email, password })
     if (result.error) return { error: result.error.message || "Sign in failed" }
     return { user: result.data?.user ?? null }
-  } catch (e: any) {
-    return { error: e?.message || "Server error during sign in" }
+  } catch (e: unknown) {
+    console.error("[auth] signIn exception:", e instanceof Error ? e.message : e)
+    return { error: "Server error during sign in" }
   }
 }
 
+import { validatePassword } from "@/lib/password-policy"
+
 export async function signUp(email: string, password: string, name?: string) {
   try {
+    const passwordError = validatePassword(password)
+    if (passwordError) return { error: passwordError }
     const auth = createAuthActions({ cookies: await cookies(), baseUrl: INSFORGE_URL, anonKey: INSFORGE_ANON_KEY })
     const result = await auth.signUp({ email, password, name })
     if (result.error) return { error: result.error.message || "Sign up failed" }
@@ -68,8 +73,9 @@ export async function signUp(email: string, password: string, name?: string) {
     }
 
     return { user: result.data?.user ?? null, message: "অ্যাকাউন্ট তৈরি হয়েছে।" }
-  } catch (e: any) {
-    return { error: e?.message || "Server error during sign up" }
+  } catch (e: unknown) {
+    console.error("[auth] signUp exception:", e instanceof Error ? e.message : e)
+    return { error: "Server error during sign up" }
   }
 }
 
@@ -79,8 +85,9 @@ export async function signOut() {
     const result = await auth.signOut()
     if (result.error) return { error: result.error.message || "Sign out failed" }
     return {}
-  } catch (e: any) {
-    return { error: e?.message || "Server error during sign out" }
+  } catch (e: unknown) {
+    console.error("[auth] signOut exception:", e instanceof Error ? e.message : e)
+    return { error: "Server error during sign out" }
   }
 }
 
@@ -115,8 +122,9 @@ export async function verifyEmailAction(email: string, otp: string, name?: strin
     }
 
     return { user: result.data?.user ?? null, success: true }
-  } catch (e: any) {
-    return { error: e?.message || "Server error during verification" }
+  } catch (e: unknown) {
+    console.error("[auth] verifyEmail exception:", e instanceof Error ? e.message : e)
+    return { error: "Server error during verification" }
   }
 }
 
@@ -124,10 +132,14 @@ export async function resendVerification(email: string) {
   try {
     const client = getBasicClient()
     const { error } = await (client.auth as any).resendVerificationEmail({ email })
-    if (error) return { error: error.message || "Failed to resend verification email" }
+    if (error) {
+      console.error("[auth] resend failed:", error.message)
+      return { error: "Failed to resend verification email" }
+    }
     return { success: true }
   } catch (e: any) {
-    return { error: e?.message || "Server error" }
+    console.error("[auth] resend exception:", e?.message || e)
+    return { error: "Server error" }
   }
 }
 
@@ -135,26 +147,30 @@ export async function sendResetPasswordEmail(email: string) {
   try {
     const client = getBasicClient()
     const { error } = await (client.auth as any).sendResetPasswordEmail({ email })
-    if (error) return { error: error.message || "Failed to send reset email" }
+    if (error) {
+      console.error("[auth] reset-send failed:", error.message)
+      return { error: "Failed to send reset email" }
+    }
     return { success: true }
   } catch (e: any) {
-    return { error: e?.message || "Server error" }
+    console.error("[auth] reset-send exception:", e?.message || e)
+    return { error: "Server error" }
   }
 }
 
 export async function resetPassword(newPassword: string, otp: string) {
   try {
+    const passwordError = validatePassword(newPassword)
+    if (passwordError) return { error: passwordError }
     const client = getBasicClient()
     const { error } = await (client.auth as any).resetPassword({ newPassword, otp })
-    if (error) return { error: error.message || "Failed to reset password" }
+    if (error) {
+      console.error("[auth] reset failed:", error.message)
+      return { error: "Failed to reset password" }
+    }
     return { success: true }
   } catch (e: any) {
-    return { error: e?.message || "Server error" }
-  }
-}
-
-export async function updatePassword(_newPassword: string) {
-  return {
-    error: "পাসওয়ার্ড পরিবর্তনের জন্য 'পাসওয়ার্ড ভুলে গেছেন' ফ্লো ব্যবহার করুন।",
+    console.error("[auth] reset exception:", e?.message || e)
+    return { error: "Server error" }
   }
 }

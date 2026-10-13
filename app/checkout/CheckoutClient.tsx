@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import { money } from "@/lib/format"
 import { safeNextPath } from "@/lib/safe-redirect"
@@ -20,6 +21,7 @@ interface CheckoutClientProps {
 }
 export default function CheckoutClient({ directItem }: CheckoutClientProps) {
   const { user, loading } = useAuth()
+  const router = useRouter()
 
   // There is no cart: the order is built from the book resolved on the server.
   const orderItems: DirectItem[] = directItem ? [directItem] : []
@@ -80,6 +82,13 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
       }
 
       const orderId = data.data.order_id || data.data.id
+
+      // Free (0-price) carts are settled inside create_ebook_order
+      // and the files are already released — skip the gateway.
+      if (data.data.free) {
+        router.push("/my-downloads")
+        return
+      }
 
       const payRes = await fetch("/api/payment/create", {
         method: "POST",

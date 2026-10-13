@@ -43,8 +43,8 @@ export default function ResetPasswordPage() {
     setError("")
     setMessage("")
 
-    if (newPassword.length < 6) {
-      setError("পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে")
+    if (newPassword.length < 8) {
+      setError("পাসওয়ার্ড কমপক্ষে ৮ অক্ষর হতে হবে")
       return
     }
     if (newPassword !== confirmPassword) {
@@ -114,7 +114,7 @@ export default function ResetPasswordPage() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
             />
           </div>
@@ -129,7 +129,7 @@ export default function ResetPasswordPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
             />
           </div>

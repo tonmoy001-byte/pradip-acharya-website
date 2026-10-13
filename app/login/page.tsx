@@ -48,8 +48,8 @@ export default function LoginPage() {
           setSubmitting(false)
           return
         }
-        if (password.length < 6) {
-          setError("পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে")
+        if (password.length < 8) {
+          setError("পাসওয়ার্ড কমপক্ষে ৮ অক্ষর হতে হবে")
           setSubmitting(false)
           return
         }
@@ -182,7 +182,7 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            minLength={6}
+            minLength={8}
             autoComplete={tab === "signin" ? "current-password" : "new-password"}
           />
         </div>
@@ -198,7 +198,7 @@ export default function LoginPage() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
-              minLength={6}
+              minLength={8}
               autoComplete="new-password"
             />
           </div>
