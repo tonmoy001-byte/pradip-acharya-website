@@ -38,8 +38,16 @@ export default function PaymentSuccessPage() {
     async function verify() {
       try {
         if (!transactionId) return
-        const res = await fetch(`/api/payment/verify?transactionId=${encodeURIComponent(transactionId)}`, { signal })
+        const params = new URLSearchParams({ transactionId })
+        if (orderId) params.set("order_id", orderId)
+        const res = await fetch(`/api/payment/verify?${params.toString()}`, { signal })
         const data = await res.json()
+
+        if (!res.ok) {
+          setStatus("error")
+          setError(`[${res.status}] ${data.error || "verification failed"}`)
+          return
+        }
 
         if (data.status === "paid") {
           setStatus("paid")
@@ -83,7 +91,7 @@ export default function PaymentSuccessPage() {
     return () => {
       abortRef.current?.abort()
     }
-  }, [transactionId])
+  }, [transactionId, orderId])
 
   if (status === "loading") {
     return (

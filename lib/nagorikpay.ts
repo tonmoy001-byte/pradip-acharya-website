@@ -19,6 +19,7 @@ interface NagorikPayCreatePayload {
   success_url: string
   cancel_url: string
   webhook_url?: string
+  order_id?: string
   metadata?: Record<string, unknown>
 }
 
@@ -140,5 +141,30 @@ export async function verifyNagorikPayPayment(
     throw new Error("NagorikPay verify failed")
   }
 
-  return data as NagorikPayVerifyResponse
+  // The gateway sometimes returns metadata as a JSON-encoded string and
+  // sometimes omits it entirely. Normalize so callers can rely on an object.
+  const verifyData = data as NagorikPayVerifyResponse
+  verifyData.metadata = normalizeMetadata(verifyData.metadata)
+
+  return verifyData
+}
+
+/** Coerce gateway metadata (object | JSON string | missing) into a plain object. */
+function normalizeMetadata(raw: unknown): Record<string, any> {
+  if (raw == null) return {}
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, any>
+      }
+    } catch {
+      // fall through — unparseable string becomes {}
+    }
+    return {}
+  }
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    return raw as Record<string, any>
+  }
+  return {}
 }

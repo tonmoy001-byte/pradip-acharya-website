@@ -40,7 +40,25 @@ export async function GET(req: Request) {
     }
 
     const client = createServiceClient()
-    const orderId = result.metadata?.order_id
+    const orderId =
+      (typeof result.metadata?.order_id === "string" && result.metadata.order_id) ||
+      searchParams.get("order_id") ||
+      undefined
+
+    // Replay guard: a transaction may settle only one order. If another order
+    // already claims this payment_reference, reject before touching anything.
+    if (orderId) {
+      const { data: holder } = await client.database
+        .from("orders").select("id").eq("payment_reference", transactionId).limit(1)
+      if (holder && holder.length > 0 && holder[0].id !== orderId) {
+        console.error("[payment] transaction replay blocked", {
+          transactionId,
+          order_id: orderId,
+          held_by: holder[0].id,
+        })
+        return NextResponse.json({ error: "Transaction already used" }, { status: 409 })
+      }
+    }
 
     const outcome = await settleNagorikPayTransaction({
       client,

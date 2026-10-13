@@ -4,11 +4,22 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { createServiceClient } from "@/lib/insforge-service"
 import { createNagorikPayPayment, formatNagorikPayAmount } from "@/lib/nagorikpay"
 import { SITE_URL } from "@/lib/seo"
 import { assertSameOrigin } from "@/lib/origin-check"
 
 export const dynamic = "force-dynamic"
+
+/** Last path segment of a URL (the gateway's execute/transaction id). */
+function lastPathSegment(url: string): string | null {
+  try {
+    const segments = new URL(url).pathname.split("/").filter(Boolean)
+    return segments.length > 0 ? segments[segments.length - 1] : null
+  } catch {
+    return null
+  }
+}
 
 interface OrderRow {
   id: string
@@ -66,12 +77,13 @@ export async function POST(req: Request) {
     // NagorikPay appends its own redirect query params (transactionId, status, …)
     // to success_url — do not embed a RupantorPay-style {transaction_id} placeholder.
     // TEMPORARY DEBUG LOGGING — capture the exact payload sent to the gateway.
+    const successUrl = `${siteUrl}/payment/success?order_id=${encodeURIComponent(order_id)}`
     console.info("[payment] create payload", {
       order_id,
       cus_name: orderRow.contact.name,
       cus_email: orderRow.contact.email,
       amount: formatNagorikPayAmount(orderRow.total),
-      success_url: `${siteUrl}/payment/success`,
+      success_url: successUrl,
       cancel_url: `${siteUrl}/payment/cancel?order_id=${encodeURIComponent(order_id)}`,
       webhook_url: `${siteUrl}/api/payment/webhook`,
       metadata: { order_id, user_id: user.id },
@@ -81,11 +93,36 @@ export async function POST(req: Request) {
       cus_name: orderRow.contact.name,
       cus_email: orderRow.contact.email,
       amount: formatNagorikPayAmount(orderRow.total),
-      success_url: `${siteUrl}/payment/success`,
+      success_url: successUrl,
       cancel_url: `${siteUrl}/payment/cancel?order_id=${encodeURIComponent(order_id)}`,
       webhook_url: `${siteUrl}/api/payment/webhook`,
+      order_id,
       metadata: { order_id, user_id: user.id },
     })
+
+    // Store the gateway reference (last path segment of the execute URL,
+    // e.g. /api/execute/<transactionId>) on the order so settlement can
+    // find this order even when the gateway verify response carries no
+    // metadata.order_id. Only touch orders still awaiting payment.
+    const gatewayRef = lastPathSegment(payment.payment_url)
+    if (gatewayRef) {
+      const serviceClient = createServiceClient()
+      const { error: refError } = await serviceClient.database
+        .from("orders")
+        .update({ payment_reference: gatewayRef })
+        .eq("id", order_id)
+        .eq("payment_status", "pending_payment")
+      if (refError) {
+        console.error("[payment] failed to store gateway reference", {
+          order_id,
+          code: (refError as { code?: string }).code,
+          message: (refError as { message?: string }).message,
+        })
+      }
+      console.info("[payment] gateway reference stored", { order_id, gatewayRef })
+    } else {
+      console.error("[payment] no gateway reference in payment_url", { payment_url: payment.payment_url })
+    }
 
     return NextResponse.json({ payment_url: payment.payment_url })
   } catch (err: unknown) {

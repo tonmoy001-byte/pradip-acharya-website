@@ -56,13 +56,28 @@ export async function POST(req: Request) {
     }
 
     const client = createServiceClient()
-    const orderId = result.metadata?.order_id
+    const orderId =
+      typeof result.metadata?.order_id === "string" && result.metadata.order_id
+        ? result.metadata.order_id
+        : undefined
 
-    if (!orderId) {
-      // No order_id in metadata - permanent condition, return 200
-      return NextResponse.json({ received: true, ignored: "no_order_id_in_metadata" }, { status: 200 })
+    // Replay guard: a transaction may settle only one order. If another order
+    // already claims this payment_reference, ignore before settling.
+    if (orderId) {
+      const { data: holder } = await client.database
+        .from("orders").select("id").eq("payment_reference", transactionId).limit(1)
+      if (holder && holder.length > 0 && holder[0].id !== orderId) {
+        console.error("[webhook] transaction replay blocked", {
+          transactionId,
+          order_id: orderId,
+          held_by: holder[0].id,
+        })
+        return NextResponse.json({ received: true, ignored: "transaction_already_used" }, { status: 200 })
+      }
     }
 
+    // Note: metadata.order_id is not required here — settlement falls back to
+    // the payment_reference stored on the order at creation time.
     const outcome = await settleNagorikPayTransaction({
       client,
       transactionId,

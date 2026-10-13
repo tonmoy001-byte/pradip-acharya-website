@@ -260,4 +260,44 @@ describe("settleNagorikPayTransaction", () => {
       ),
     ).toBe(true)
   })
+
+  it("settles with the caller-supplied order id when gateway metadata is missing entirely", async () => {
+    const { client, calls } = makeClient({
+      orders: [ORDER],
+      updateResult: [{ id: "order-1" }],
+    })
+
+    const outcome = await settleNagorikPayTransaction({
+      client,
+      transactionId: "txn-1",
+      gateway: gateway({ metadata: undefined }) as any,
+      orderId: "order-1",
+    })
+
+    expect(outcome).toEqual({ kind: "paid", order_id: "order-1", download_ready: true })
+    expect(
+      calls.some((c) => c.fn === "eq" && c.args[0] === "id" && c.args[1] === "order-1"),
+    ).toBe(true)
+  })
+
+  it("settles with no metadata and no order id by falling back to payment_reference", async () => {
+    const { client, calls } = makeClient({
+      orders: [ORDER],
+      updateResult: [{ id: "order-1" }],
+    })
+
+    const outcome = await settleNagorikPayTransaction({
+      client,
+      transactionId: "txn-1",
+      gateway: gateway({ metadata: undefined }) as any,
+    })
+
+    expect(outcome).toEqual({ kind: "paid", order_id: "order-1", download_ready: true })
+    expect(
+      calls.some(
+        (c) => c.fn === "eq" && c.args[0] === "payment_reference" && c.args[1] === "txn-1",
+      ),
+    ).toBe(true)
+    expect(calls.some((c) => c.fn === "update")).toBe(true)
+  })
 })
