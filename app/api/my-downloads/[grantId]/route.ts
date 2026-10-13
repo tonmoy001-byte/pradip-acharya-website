@@ -9,12 +9,18 @@
 //   4. grant's order_item exists, is a digital (ebook) line, and belongs to an
 //      order owned by this user whose payment_status = 'paid'
 //   5. an active digital asset is attached to that exact format
+// Steps 1–4 run on the customer-session client. Only after every check
+// passes does the route escalate to the service client for steps 5–6
+// (digital_assets lookup and private-bucket download) — both are admin-only
+// under RLS/storage policies, so a customer JWT cannot read them. The
+// service client is never constructed on a rejection path.
 // There is no way to reach another customer's PDF by editing grant, order,
 // order-item or format ids, and no public/predictable URL for the file.
 
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { createServiceClient } from "@/lib/insforge-service"
 import { EBOOK_DELIVERY_TYPE } from "@/lib/data"
 import { serverError } from "@/lib/http-errors"
 
@@ -97,8 +103,14 @@ export async function GET(req: Request, { params }: RouteParams) {
       return denied(403, "Payment has not been confirmed for this order")
     }
 
-    // 5. Get the digital asset (storage key) for this exact format
-    const { data: assets, error: daError } = await client.database
+    // 5–6. Escalate only now that every authorization check has passed.
+    // digital_assets is admin-only under RLS and the private bucket only
+    // allows admin SELECT, so the customer-session client cannot read
+    // either. format_id comes from the authorized order item, never the
+    // request.
+    const service = createServiceClient()
+
+    const { data: assets, error: daError } = await service.database
       .from("digital_assets")
       .select("storage_key")
       .eq("format_id", orderItem.format_id)
@@ -114,9 +126,9 @@ export async function GET(req: Request, { params }: RouteParams) {
       return denied(404, "No file attached to this order")
     }
 
-    // 6. Fetch the file first, so a storage failure never costs
-    //    the customer a download.
-    const { data: blob, error: storageError } = await client.storage
+    // Fetch the file first, so a storage failure never costs
+    // the customer a download.
+    const { data: blob, error: storageError } = await service.storage
       .from("digital-books")
       .download(storageKey)
 
