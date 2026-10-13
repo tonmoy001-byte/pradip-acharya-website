@@ -10,12 +10,15 @@ interface DownloadGrant {
   id: string
   order_id: string
   book_title: string | null
-  max_downloads: number
-  download_count: number
-  expires_at: string
   revoked_at: string | null
-  created_at: string
-  last_downloaded_at: string | null
+}
+
+const DL_ERROR_MESSAGES: Record<string, string> = {
+  not_found: "ডাউনলোড লিংক পাওয়া যায়নি বা অনুমতি নেই।",
+  not_paid: "এই অর্ডারের পেমেন্ট এখনো নিশ্চিত হয়নি।",
+  revoked: "এই ডাউনলোড লিংকটি বাতিল করা হয়েছে।",
+  no_file: "এই অর্ডারে কোনো ফাইল যুক্ত করা হয়নি।",
+  storage: "ফাইলটি এখন পাওয়া যাচ্ছে না। কিছুক্ষণ পর আবার চেষ্টা করুন।",
 }
 
 export default function MyDownloadsPage() {
@@ -24,13 +27,21 @@ export default function MyDownloadsPage() {
   const [grants, setGrants] = useState<DownloadGrant[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
-  const [downloading, setDownloading] = useState<string | null>(null)
 
   useEffect(() => {
     if (authLoading) return
     if (!user) {
       router.push("/login")
       return
+    }
+
+    // Redirect errors from the download route (browser navigations get a
+    // 303 here instead of raw JSON). Read before any state updates.
+    const dlError = new URLSearchParams(window.location.search).get("dl_error")
+    if (dlError && DL_ERROR_MESSAGES[dlError]) {
+      setError(DL_ERROR_MESSAGES[dlError])
+      const clean = `${window.location.pathname}${window.location.hash}`
+      window.history.replaceState(null, "", clean)
     }
 
     async function fetchGrants() {
@@ -53,42 +64,6 @@ export default function MyDownloadsPage() {
 
     fetchGrants()
   }, [user, authLoading, router])
-
-  async function handleDownload(grantId: string) {
-    setDownloading(grantId)
-    try {
-      const res = await fetch(`/api/my-downloads/${grantId}`, { credentials: "include" })
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}))
-        setError(data.error || "ডাউনলোড ব্যর্থ হয়েছে")
-        return
-      }
-
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = "ebook.pdf"
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-
-      // Refresh grants
-      setGrants((prev) =>
-        prev.map((g) =>
-          g.id === grantId
-            ? { ...g, download_count: g.download_count + 1, last_downloaded_at: new Date().toISOString() }
-            : g,
-        ),
-      )
-    } catch {
-      setError("ডাউনলোড ব্যর্থ হয়েছে")
-    } finally {
-      setDownloading(null)
-    }
-  }
 
   if (authLoading || loading) {
     return (
@@ -118,7 +93,7 @@ export default function MyDownloadsPage() {
       <div className="page-header">
         <h1>আমার ডাউনলোড</h1>
         <p style={{ color: "var(--ink-muted)", marginTop: "var(--sp-2)" }}>
-          পেমেন্ট যাচাই ও অ্যাডমিন অনুমোদনের পর অনুমোদিত ইবুকগুলো এখানে পাবেন।
+          পেমেন্ট নিশ্চিত হলে আপনার ইবুক এখানে পাবেন।
         </p>
       </div>
 
@@ -131,17 +106,15 @@ export default function MyDownloadsPage() {
       {grants.length === 0 ? (
         <div className="cart-empty">
           <p style={{ marginBottom: "var(--sp-6)" }}>
-            আপনার কোনো অনুমোদিত ডাউনলোড নেই। পেমেন্ট সম্পন্ন ও অ্যাডমিন অনুমোদনের পর এখানে দেখা যাবে।
+            আপনার কোনো ডাউনলোড নেই। পেমেন্ট নিশ্চিত হলে এখানে দেখা যাবে।
           </p>
           <Link href="/books" className="btn btn-primary">সকল বই দেখুন</Link>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--sp-4)" }}>
           {grants.map((grant) => {
-            const isExpired = new Date(grant.expires_at) < new Date()
             const isRevoked = !!grant.revoked_at
-            const isLimitReached = grant.download_count >= grant.max_downloads
-            const canDownload = !isExpired && !isRevoked && !isLimitReached
+            const canDownload = !isRevoked
 
             return (
               <div key={grant.id} className="cart-item" style={{ flexDirection: "column", alignItems: "flex-start", gap: "var(--sp-3)" }}>
@@ -153,26 +126,20 @@ export default function MyDownloadsPage() {
                     <p style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>
                       ফরম্যাট: ডিজিটাল ইবুক (PDF) · অর্ডার #{grant.order_id.slice(0, 8)}...
                     </p>
-                    <p style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>
-                      ডাউনলোড: {grant.download_count}/{grant.max_downloads}
-                    </p>
-                    <p style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>
-                      মেয়াদ: {new Date(grant.expires_at).toLocaleDateString("bn-BD")}
-                    </p>
                   </div>
                   <div>
                     {canDownload ? (
-                      <button
-                        className="btn btn-primary"
-                        onClick={() => handleDownload(grant.id)}
-                        disabled={downloading === grant.id}
-                        style={{ fontSize: "0.875rem" }}
-                      >
-                        {downloading === grant.id ? "ডাউনলোড হচ্ছে..." : "ইবুক ডাউনলোড"}
-                      </button>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "var(--sp-1)" }}>
+                        <a href={`/api/my-downloads/${grant.id}`} className="btn btn-primary" style={{ fontSize: "0.875rem" }}>
+                          ইবুক ডাউনলোড
+                        </a>
+                        <p style={{ fontSize: "0.75rem", color: "var(--ink-muted)", textAlign: "right", maxWidth: 220 }}>
+                          ডাউনলোড না হলে লিংকটি Chrome বা অন্য ব্রাউজারে খুলুন।
+                        </p>
+                      </div>
                     ) : (
                       <span style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>
-                        {isRevoked ? "বাতিল" : isExpired ? "মেয়াদোত্তীর্ণ" : "সীমা শেষ"}
+                        বাতিল
                       </span>
                     )}
                   </div>

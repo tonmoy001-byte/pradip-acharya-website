@@ -22,9 +22,7 @@ interface OrderItem {
 interface DownloadGrant {
   id: string
   order_item_id: string
-  max_downloads: number
   download_count: number
-  expires_at: string
   revoked_at: string | null
 }
 
@@ -78,11 +76,7 @@ function getTimelineIndex(order: Order): number {
   const grants = order.download_grants || []
   if (grants.length === 0) return 1
   const active = grants.filter((g) => !g.revoked_at)
-  if (active.length === 0) return 1
-  const usable = active.some(
-    (g) => new Date(g.expires_at) > new Date() && g.download_count < g.max_downloads,
-  )
-  return usable ? 3 : 2
+  return active.length > 0 ? 3 : 2
 }
 
 function paymentMethodLabel(method: string | null) {
@@ -166,9 +160,7 @@ export default function OrderDetailPage() {
 
   const timelineIdx = getTimelineIndex(order)
   const grants = (order.download_grants || []).filter((g) => !g.revoked_at)
-  const hasDownload = grants.some(
-    (g) => new Date(g.expires_at) > new Date() && g.download_count < g.max_downloads,
-  )
+  const hasDownload = grants.length > 0
   const isPaid = order.payment_status === "paid"
 
   const [payLoading, setPayLoading] = useState(false)

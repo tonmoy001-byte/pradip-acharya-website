@@ -37,9 +37,7 @@ interface Order {
   download_grants?: Array<{
     id: string
     order_item_id: string
-    max_downloads: number
     download_count: number
-    expires_at: string
     revoked_at: string | null
   }>
 }
@@ -208,7 +206,7 @@ export default function AdminOrderDetailPage() {
                     {item.delivery_type_snapshot === "digital" ? (
                       grant ? (
                         <span className="admin-badge admin-badge-published" style={{ fontSize: "0.6875rem" }}>
-                          অনুমোদিত · {grant.download_count}/{grant.max_downloads}
+                          অনুমোদিত · {grant.download_count} বার ডাউনলোড
                         </span>
                       ) : (
                         <span className="admin-badge admin-badge-draft" style={{ fontSize: "0.6875rem" }}>

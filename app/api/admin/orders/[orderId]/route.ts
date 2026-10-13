@@ -30,10 +30,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ orderId:
       profile = data
     }
 
-    // Download grants issued for this order's ebook lines (admin approval state)
+    // Download grants issued for this order's ebook lines
     const { data: grants } = await client.database
       .from("download_grants")
-      .select("id, order_item_id, max_downloads, download_count, expires_at, revoked_at")
+      .select("id, order_item_id, download_count, revoked_at")
       .eq("order_id", orderId)
 
     return NextResponse.json({ order: { ...order, profile, download_grants: grants || [] } })
