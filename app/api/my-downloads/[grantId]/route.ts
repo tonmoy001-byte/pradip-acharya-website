@@ -74,7 +74,7 @@ export async function GET(req: Request, { params }: RouteParams) {
     // 4. Resolve the order item and verify it is an owned, paid, digital line
     const { data: orderItems, error: oiError } = await client.database
       .from("order_items")
-      .select("id, order_id, book_id, format_id, delivery_type_snapshot")
+      .select("id, order_id, book_id, format_id, delivery_type_snapshot, title_snapshot")
       .eq("id", grant.order_item_id)
       .limit(1)
 
@@ -156,13 +156,20 @@ export async function GET(req: Request, { params }: RouteParams) {
       return denied(403, "Maximum download limit reached or link expired")
     }
 
-    // 8. Return the PDF (unchanged)
-    const filename = storageKey.split("/").pop() || "ebook.pdf"
+    // 8. Return the PDF. Filename uses the book title (RFC 5987 for
+    //    non-ASCII/Bengali names) with an ASCII fallback for older clients.
+    const rawTitle = String((orderItem as any).title_snapshot || "").trim()
+    const baseTitle = rawTitle
+      .replace(/["\\]/g, "")
+      .replace(/\.pdf$/i, "")
+      .trim() || "ebook"
+    const asciiName = `${baseTitle.replace(/[^\w.-]+/g, "_").replace(/_+/g, "_")}.pdf`
+    const utf8Name = encodeURIComponent(`${baseTitle}.pdf`)
 
     return new Response(blob, {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename.replace(/[^\w.\-]/g, "_")}"`,
+        "Content-Disposition": `attachment; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`,
         "Content-Length": String(blob.size ?? ""),
         "X-Content-Type-Options": "nosniff",
         "Cache-Control": "no-store, no-cache, must-revalidate, private",

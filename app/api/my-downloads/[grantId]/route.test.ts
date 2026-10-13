@@ -143,6 +143,7 @@ function orderItem(overrides: Row = {}) {
     book_id: "book-1",
     format_id: "fmt-1",
     delivery_type_snapshot: "digital",
+    title_snapshot: "ছেঁড়া পুষ্প",
     ...overrides,
   }
 }
@@ -192,6 +193,17 @@ describe("GET /api/my-downloads/[grantId]", () => {
     expect(consumeDownload).toHaveBeenCalledWith("consume_download", {
       p_grant_id: "grant-1",
     })
+  })
+
+  it("names the download after the book title with a UTF-8 (Bengali) filename", async () => {
+    const res = await call()
+    expect(res.status).toBe(200)
+    const cd = res.headers.get("Content-Disposition") || ""
+    expect(cd).toContain("filename*=UTF-8''")
+    // "ছেঁড়া পুষ্প.pdf" percent-encoded
+    expect(cd).toContain(`filename*=UTF-8''${encodeURIComponent("ছেঁড়া পুষ্প.pdf")}`)
+    // ASCII fallback present for older clients
+    expect(cd).toMatch(/filename="[^"]+\.pdf"/)
   })
 
   it("uses the service client for digital_assets and storage, and the user client for consume_download", async () => {
