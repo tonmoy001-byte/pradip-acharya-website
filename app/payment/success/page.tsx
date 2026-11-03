@@ -9,7 +9,7 @@ import { useSearchParams } from "next/navigation"
 import { money } from "@/lib/format"
 import SeoNoindex from "@/components/SeoNoindex"
 
-type PaymentStatus = "loading" | "paid" | "pending" | "error" | "failed"
+type PaymentStatus = "loading" | "paid" | "pending" | "error" | "failed" | "duplicate"
 
 export default function PaymentSuccessPage() {
   const searchParams = useSearchParams()
@@ -52,6 +52,12 @@ export default function PaymentSuccessPage() {
         if (data.status === "paid") {
           setStatus("paid")
           setDownloadReady(data.download_ready === true)
+          if (data.order_id) setOrderId((prev) => prev || data.order_id)
+          return
+        }
+
+        if (data.status === "duplicate_payment") {
+          setStatus("duplicate")
           if (data.order_id) setOrderId((prev) => prev || data.order_id)
           return
         }
@@ -141,6 +147,26 @@ export default function PaymentSuccessPage() {
             </button>
             <Link href="/account/orders" className="btn btn-secondary">আমার অর্ডার</Link>
             <Link href="/contact" className="btn btn-secondary">সহায়তা</Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (status === "duplicate") {
+    return (
+      <div className="container section-padding">
+        <SeoNoindex />
+        <div className="order-confirm">
+          <h1>ডুপ্লিকেট পেমেন্ট সনাক্ত</h1>
+          <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)" }}>
+            এই অর্ডারটি ইতিমধ্যে পেইড। অতিরিক্ত ট্রানজেকশনটি রিফান্ড প্রক্রিয়ার জন্য চিহ্নিত করা হয়েছে।
+          </p>
+          <p style={{ color: "var(--stone)", marginBottom: "var(--sp-2)" }}>ট্রানজেকশন আইডি: {transactionId}</p>
+          <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)" }}>অর্ডার আইডি: {orderId}</p>
+          <div style={{ display: "flex", gap: "var(--sp-3)", flexWrap: "wrap", marginTop: "var(--sp-4)" }}>
+            <Link href="/account/orders" className="btn btn-primary">আমার অর্ডার</Link>
+            <Link href="/my-downloads" className="btn btn-secondary">আমার ডাউনলোড</Link>
           </div>
         </div>
       </div>

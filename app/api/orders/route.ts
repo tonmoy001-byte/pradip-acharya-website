@@ -20,6 +20,7 @@ import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
 import { assertSameOrigin } from "@/lib/origin-check"
+import { revalidatePath } from "next/cache"
 import { serverError } from "@/lib/http-errors"
 
 export const dynamic = "force-dynamic"
@@ -76,7 +77,7 @@ function parseContact(value: unknown): OrderContact | null {
 }
 
 /** Maps create_ebook_order() exception messages to HTTP responses. */
-function mapOrderError(message: string): { status: number; error: string } {
+function mapOrderError(message: string): { status: number; error: string; order_id?: string } {
   if (message.startsWith("cart_empty")) return { status: 400, error: "Cart is empty" }
   if (message.startsWith("cart_too_large")) return { status: 400, error: "Too many items" }
   if (message.startsWith("book_not_found")) return { status: 400, error: "A book in your cart no longer exists" }
@@ -84,6 +85,10 @@ function mapOrderError(message: string): { status: number; error: string } {
   if (message.startsWith("invalid_price")) return { status: 400, error: "A book in your cart has an invalid price" }
   if (message.startsWith("already_owned")) {
     return { status: 409, error: "You already own this ebook and can still download it" }
+  }
+  if (message.startsWith("active_order_exists")) {
+    const existing = message.split(":")[1]
+    return { status: 409, error: "active_order_exists", order_id: existing }
   }
   return { status: 500, error: "Failed to create order" }
 }
@@ -127,9 +132,13 @@ export async function POST(req: Request) {
     if (error) {
       console.error("[orders] create failed:", error.message)
       const mapped = mapOrderError(error.message ?? "")
-      return NextResponse.json({ error: mapped.error }, { status: mapped.status, headers: NO_STORE })
+      const body: Record<string, unknown> = { error: mapped.error }
+      if (mapped.order_id) body.order_id = mapped.order_id
+      return NextResponse.json(body, { status: mapped.status, headers: NO_STORE })
     }
 
+    try { revalidatePath("/account/orders") } catch {}
+    try { revalidatePath("/account") } catch {}
     return NextResponse.json({ data }, { headers: NO_STORE })
   } catch (err: unknown) {
     if (err instanceof Response) {

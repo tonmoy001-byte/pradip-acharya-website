@@ -178,7 +178,12 @@ export default function OrderDetailPage() {
         body: JSON.stringify({ order_id: order.id }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "পেমেন্ট তৈরি ব্যর্থ")
+      if (!res.ok) {
+        if (res.status === 409 && data?.error === "payment_in_progress") {
+          throw new Error("এই বইয়ের পেমেন্ট ইতিমধ্যে চলছে। অপেক্ষা করুন।")
+        }
+        throw new Error(data.error || "পেমেন্ট তৈরি ব্যর্থ")
+      }
 
       if (!isAllowedPaymentUrl(data.payment_url)) {
         throw new Error("অবৈধ পেমেন্ট URL")

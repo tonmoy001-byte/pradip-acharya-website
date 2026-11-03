@@ -11,6 +11,7 @@ import { requireUser } from "@/lib/auth-helpers"
 import { createServiceClient } from "@/lib/insforge-service"
 import { verifyNagorikPayPayment } from "@/lib/nagorikpay"
 import { settleNagorikPayTransaction } from "@/lib/payment-settlement"
+import { revalidatePath } from "next/cache"
 import { serverError } from "@/lib/http-errors"
 
 export const dynamic = "force-dynamic"
@@ -44,6 +45,7 @@ export async function GET(req: Request) {
       (typeof result.metadata?.order_id === "string" && result.metadata.order_id) ||
       searchParams.get("order_id") ||
       undefined
+
 
     // Replay guard: a transaction may settle only one order. If another order
     // already claims this payment_reference, reject before touching anything.
@@ -79,6 +81,9 @@ export async function GET(req: Request) {
     // Map SettleOutcome to HTTP response
     switch (outcome.kind) {
       case "paid":
+        try { revalidatePath("/account/orders") } catch {}
+        try { revalidatePath("/account") } catch {}
+        try { revalidatePath("/my-downloads") } catch {}
         return NextResponse.json({
           status: "paid",
           order_id: outcome.order_id,
@@ -88,6 +93,8 @@ export async function GET(req: Request) {
         return NextResponse.json({ status: "pending", order_id: outcome.order_id })
       case "failed":
         return NextResponse.json({ status: "failed", order_id: outcome.order_id })
+      case "duplicate":
+        return NextResponse.json({ status: "duplicate_payment", order_id: outcome.order_id })
       case "amount_mismatch":
         return NextResponse.json({ error: "Payment amount does not match order total" }, { status: 400 })
       case "not_found":

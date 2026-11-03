@@ -1,5 +1,5 @@
 // Validates the JSON-LD that production actually serves.
-const BASE = process.env.SITE_URL ?? "https://pradipbooks.insforge.site";
+const BASE = process.env.SITE_URL ?? "https://pradipuponnash.com";
 const PAGES = ["/", "/books", "/novels", "/book/chhera-pushpo", "/about", "/contact", "/privacy", "/blog"];
 
 let failures = 0;

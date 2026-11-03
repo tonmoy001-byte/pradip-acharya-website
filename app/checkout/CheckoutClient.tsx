@@ -60,35 +60,39 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
     setServerError("")
 
     try {
+      let orderId: string | null = null
+      let isFree = false
+
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          // Ebook-only store: the server resolves the digital format itself.
-          cartItems: orderItems.map((i) => ({
-            book_id: i.bookId,
-            quantity: i.quantity,
-          })),
+          cartItems: orderItems.map((i) => ({ book_id: i.bookId, quantity: i.quantity })),
           contact: { name: form.name, email: form.email, phone: form.phone },
         }),
       })
       const data = await res.json()
+
       if (!res.ok) {
-        if (res.status === 401) {
-          throw new Error("আপনার সেশন শেষ হয়েছে, আবার লগ ইন করুন")
+        if (res.status === 401) throw new Error("আপনার সেশন শেষ হয়েছে, আবার লগ ইন করুন")
+        if (res.status === 409 && data?.error === "active_order_exists" && data?.order_id) {
+          // Reuse the existing pending order instead of creating a duplicate.
+          orderId = data.order_id
+        } else {
+          throw new Error(data?.error || "অর্ডার তৈরি ব্যর্থ হয়েছে")
         }
-        throw new Error(data.error || "অর্ডার তৈরি ব্যর্থ হয়েছে")
+      } else {
+        orderId = data.data.order_id || data.data.id
+        isFree = !!data.data.free
       }
 
-      const orderId = data.data.order_id || data.data.id
-
-      // Free (0-price) carts are settled inside create_ebook_order
-      // and the files are already released — skip the gateway.
-      if (data.data.free) {
+      if (isFree && orderId) {
         router.push("/my-downloads")
         return
       }
+
+      if (!orderId) throw new Error("অর্ডার তৈরি ব্যর্থ হয়েছে")
 
       const payRes = await fetch("/api/payment/create", {
         method: "POST",
@@ -98,20 +102,19 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
       })
       const payData = await payRes.json()
       if (!payRes.ok) {
-        if (payRes.status === 401) {
-          throw new Error("আপনার সেশন শেষ হয়েছে, আবার লগ ইন করুন")
+        if (payRes.status === 401) throw new Error("আপনার সেশন শেষ হয়েছে, আবার লগ ইন করুন")
+        if (payRes.status === 409 && payData?.error === "payment_in_progress") {
+          throw new Error("এই বইয়ের পেমেন্ট ইতিমধ্যে চলছে। অপেক্ষা করুন বা বিদ্যমান অর্ডার দেখুন।")
         }
-        throw new Error(payData.error || "পেমেন্ট তৈরি ব্যর্থ")
+        if (payRes.status === 409) throw new Error("এই অর্ডারের পেমেন্ট আর সম্ভব নয়।")
+        throw new Error(payData?.error || "পেমেন্ট তৈরি ব্যর্থ")
       }
 
-      // Validate payment URL to prevent open redirect
       const paymentUrl = payData.payment_url as string
       const allowedHosts = ["secure-pay.nagorikpay.com", "sandbox-api.nagorikpay.com"]
       try {
         const parsedUrl = new URL(paymentUrl)
-        if (!allowedHosts.includes(parsedUrl.hostname)) {
-          throw new Error("অনুমোদিত পেমেন্ট গেটওয়ে নয়")
-        }
+        if (!allowedHosts.includes(parsedUrl.hostname)) throw new Error("অনুমোদিত পেমেন্ট গেটওয়ে নয়")
       } catch {
         throw new Error("অবৈধ পেমেন্ট URL")
       }

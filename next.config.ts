@@ -54,8 +54,38 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: insforgePattern ? [insforgePattern] : [],
   },
+  async redirects() {
+    return [
+      {
+        source: "/:path((?!api/payment).*)",
+        has: [{ type: "host", value: "www.pradipuponnash.com" }],
+        destination: "https://pradipuponnash.com/:path*",
+        permanent: true,
+      },
+      {
+        source: "/:path((?!api/payment).*)",
+        has: [{ type: "host", value: "pradipbooks.insforge.site" }],
+        destination: "https://pradipuponnash.com/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }]
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      {
+        source: "/account/:path*",
+        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
+      },
+      {
+        source: "/api/my-orders",
+        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
+      },
+      {
+        source: "/api/my-downloads",
+        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
+      },
+    ]
   },
 }
 

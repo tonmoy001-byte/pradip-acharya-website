@@ -20,7 +20,7 @@ function requiredEnv(name) {
 const ENV_VARS = [
   { key: "NEXT_PUBLIC_INSFORGE_URL", value: requiredEnv("NEXT_PUBLIC_INSFORGE_URL") },
   { key: "NEXT_PUBLIC_INSFORGE_ANON_KEY", value: requiredEnv("NEXT_PUBLIC_INSFORGE_ANON_KEY") },
-  { key: "NEXT_PUBLIC_SITE_URL", value: "https://pradipbooks.insforge.site" },
+  { key: "NEXT_PUBLIC_SITE_URL", value: "https://pradipuponnash.com" },
 ];
 
 async function insforge(method, path, body) {

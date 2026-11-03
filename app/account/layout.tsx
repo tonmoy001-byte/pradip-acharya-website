@@ -56,16 +56,6 @@ const menuItems = [
     ),
   },
   {
-    label: "পছন্দের তালিকা",
-    href: "/account/wishlist",
-    countKey: "wishlist" as const,
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-      </svg>
-    ),
-  },
-  {
     label: "পাসওয়ার্ড পরিবর্তন",
     href: "/account/change-password",
     icon: (
@@ -77,7 +67,7 @@ const menuItems = [
   },
 ]
 
-type CountKey = "orders" | "downloads" | "wishlist"
+type CountKey = "orders" | "downloads"
 
 export default function AccountLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, signOut } = useAuth()
@@ -86,7 +76,6 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
   const [counts, setCounts] = useState<Record<CountKey, number>>({
     orders: 0,
     downloads: 0,
-    wishlist: 0,
   })
 
   useEffect(() => {
@@ -96,19 +85,18 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
       const endpoints: [CountKey, string][] = [
         ["orders", "/api/my-orders"],
         ["downloads", "/api/my-downloads"],
-        ["wishlist", "/api/wishlist"],
       ]
 
       const results = await Promise.allSettled(
         endpoints.map(async ([key, url]) => {
-          const res = await fetch(url)
+          const res = await fetch(`${url}?_=${Date.now()}`, { cache: "no-store" })
           if (!res.ok) return [key, 0] as const
           const json = await res.json()
           return [key, Array.isArray(json.data) ? json.data.length : 0] as const
         })
       )
 
-      const newCounts: Record<CountKey, number> = { orders: 0, downloads: 0, wishlist: 0 }
+      const newCounts: Record<CountKey, number> = { orders: 0, downloads: 0 }
       for (const r of results) {
         if (r.status === "fulfilled") {
           const [key, count] = r.value

@@ -18,6 +18,7 @@ const FILTERS = [
   { value: "", label: "সব" },
   { value: "pending_payment", label: "পেমেন্ট বাকি" },
   { value: "paid", label: "পেইড" },
+  { value: "refund_required", label: "রিফান্ড প্রয়োজন" },
   { value: "refunded", label: "ফেরত" },
 ]
 

@@ -36,7 +36,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ orderId:
       .select("id, order_item_id, download_count, revoked_at")
       .eq("order_id", orderId)
 
-    return NextResponse.json({ order: { ...order, profile, download_grants: grants || [] } })
+    // Payment attempts for this order
+    const { data: attempts } = await client.database
+      .from("payment_attempts")
+      .select("id, provider, provider_transaction_id, status, amount, currency, created_at, completed_at, duplicate_of_attempt_id")
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: false })
+
+    return NextResponse.json({ order: { ...order, profile, download_grants: grants || [], payment_attempts: attempts || [] } })
   } catch (err: unknown) {
     if (err instanceof Response) return err
     return serverError("admin order detail", err)

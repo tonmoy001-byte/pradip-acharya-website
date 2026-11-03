@@ -40,6 +40,17 @@ interface Order {
     download_count: number
     revoked_at: string | null
   }>
+  payment_attempts?: Array<{
+    id: string
+    provider: string
+    provider_transaction_id: string | null
+    status: string
+    amount: number
+    currency: string
+    created_at: string
+    completed_at: string | null
+    duplicate_of_attempt_id: string | null
+  }>
 }
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -49,6 +60,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   paid: "পেইড",
   refunded: "ফেরত",
   failed: "ব্যর্থ",
+  refund_required: "রিফান্ড প্রয়োজন",
 }
 
 export default function AdminOrderDetailPage() {
@@ -140,6 +152,38 @@ export default function AdminOrderDetailPage() {
             )}
           </div>
         </div>
+
+        {order.payment_attempts?.some((a) => a.status === "refund_required") && (
+          <div style={{ background: "rgba(220, 38, 38, 0.08)", border: "1px solid rgba(220, 38, 38, 0.3)", borderRadius: "var(--radius-md)", padding: "var(--sp-4)", marginTop: "var(--sp-4)" }}>
+            <strong style={{ color: "#dc2626" }}>রিফান্ড প্রয়োজন:</strong> এই অর্ডারে একটি অতিরিক্ত সফল পেমেন্ট সনাক্ত হয়েছে। অ্যাডমিন রিফান্ড প্রক্রিয়া করুন।
+          </div>
+        )}
+
+        {order.payment_attempts && order.payment_attempts.length > 0 && (
+          <div style={{ background: "var(--white)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", padding: "var(--sp-5)", marginTop: "var(--sp-4)" }}>
+            <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "var(--sp-4)" }}>পেমেন্ট অ্যাটেম্পট</h2>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>স্ট্যাটাস</th>
+                  <th>ট্রানজেকশন</th>
+                  <th>পরিমাণ</th>
+                  <th>তারিখ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {order.payment_attempts.map((a) => (
+                  <tr key={a.id}>
+                    <td>{PAYMENT_LABELS[a.status] || a.status}</td>
+                    <td style={{ fontFamily: "monospace", fontSize: "0.8125rem" }}>{a.provider_transaction_id || "—"}</td>
+                    <td>{a.amount} {a.currency}</td>
+                    <td>{new Date(a.created_at).toLocaleString("bn-BD")}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         {/* Contact */}
         <div style={{ background: "var(--white)", borderRadius: "var(--radius-md)", border: "1px solid var(--border)", padding: "var(--sp-5)" }}>

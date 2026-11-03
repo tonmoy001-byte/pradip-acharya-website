@@ -1,12 +1,16 @@
 // app/api/payment/create/route.ts
 // POST: Initiate NagorikPay payment for an order.
+//
+// Idempotent: reuses a live payment attempt, rejects paid/terminal orders,
+// and atomically claims a new attempt via begin_payment_attempt() so parallel
+// requests cannot create two gateway sessions.
 
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
 import { createServiceClient } from "@/lib/insforge-service"
 import { createNagorikPayPayment, formatNagorikPayAmount } from "@/lib/nagorikpay"
-import { SITE_URL } from "@/lib/seo"
+import { paymentUrls } from "@/lib/payment-urls"
 import { assertSameOrigin } from "@/lib/origin-check"
 
 export const dynamic = "force-dynamic"
@@ -34,6 +38,7 @@ export async function POST(req: Request) {
     assertSameOrigin(req)
     const user = await requireUser()
     const client = await createServerClient()
+
     const body = await req.json()
     const { order_id } = body as { order_id: string }
 
@@ -58,70 +63,92 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    if (orderRow.payment_status !== "pending_payment") {
-      return NextResponse.json({ error: "Order already processed" }, { status: 400 })
+    if (orderRow.payment_status !== "pending_payment" && orderRow.payment_status !== "payment_review") {
+      return NextResponse.json({ error: "Order already processed" }, { status: 409 })
     }
 
-    // Free orders never reach the gateway — create_ebook_order settles
-    // them immediately. If one still gets here, something is wrong.
     if (!(Number(orderRow.total) > 0)) {
       return NextResponse.json({ error: "Nothing to pay for this order" }, { status: 400 })
     }
 
-    // SITE_URL rejects localhost/non-HTTPS values from the env (lib/seo.ts),
-    // so a forwarded dev value can never reach the gateway as a return URL.
-    const siteUrl = SITE_URL
-
-    console.info("[payment] create", { returnHost: new URL(siteUrl).host, order_id })
-
-    // NagorikPay appends its own redirect query params (transactionId, status, …)
-    // to success_url — do not embed a RupantorPay-style {transaction_id} placeholder.
-    // TEMPORARY DEBUG LOGGING — capture the exact payload sent to the gateway.
-    const successUrl = `${siteUrl}/payment/success?order_id=${encodeURIComponent(order_id)}`
-    console.info("[payment] create payload", {
-      order_id,
-      cus_name: orderRow.contact.name,
-      cus_email: orderRow.contact.email,
-      amount: formatNagorikPayAmount(orderRow.total),
-      success_url: successUrl,
-      cancel_url: `${siteUrl}/payment/cancel?order_id=${encodeURIComponent(order_id)}`,
-      webhook_url: `${siteUrl}/api/payment/webhook`,
-      metadata: { order_id, user_id: user.id },
+    // Atomic claim / reuse / in-progress decision.
+    const { data: claim, error: claimError } = await client.database.rpc("begin_payment_attempt", {
+      p_order_id: order_id,
     })
 
-    const payment = await createNagorikPayPayment({
-      cus_name: orderRow.contact.name,
-      cus_email: orderRow.contact.email,
-      amount: formatNagorikPayAmount(orderRow.total),
-      success_url: successUrl,
-      cancel_url: `${siteUrl}/payment/cancel?order_id=${encodeURIComponent(order_id)}`,
-      webhook_url: `${siteUrl}/api/payment/webhook`,
-      order_id,
-      metadata: { order_id, user_id: user.id },
-    })
+    if (claimError || !claim) {
+      console.error("[payment] begin_payment_attempt failed", { order_id, message: claimError?.message })
+      return NextResponse.json({ error: "Payment could not be started. Please try again." }, { status: 500 })
+    }
 
-    // Store the gateway reference (last path segment of the execute URL,
-    // e.g. /api/execute/<transactionId>) on the order so settlement can
-    // find this order even when the gateway verify response carries no
-    // metadata.order_id. Only touch orders still awaiting payment.
-    const gatewayRef = lastPathSegment(payment.payment_url)
-    if (gatewayRef) {
+    const claimRow = claim as { action: string; attempt_id?: string; payment_url?: string; reason?: string }
+
+    if (claimRow.action === "reuse" && claimRow.payment_url) {
+      return NextResponse.json({ payment_url: claimRow.payment_url })
+    }
+
+    if (claimRow.action === "in_progress") {
+      return NextResponse.json({ error: "payment_in_progress", order_id }, { status: 409 })
+    }
+
+    if (claimRow.action === "rejected") {
+      return NextResponse.json({ error: "Order already processed" }, { status: 409 })
+    }
+
+    if (claimRow.action !== "claimed" || !claimRow.attempt_id) {
+      return NextResponse.json({ error: "Payment could not be started. Please try again." }, { status: 500 })
+    }
+
+    const attemptId = claimRow.attempt_id
+
+    const urls = paymentUrls(order_id)
+    const successUrl = urls.success
+
+    let payment
+    try {
+      payment = await createNagorikPayPayment({
+        cus_name: orderRow.contact.name,
+        cus_email: orderRow.contact.email,
+        amount: formatNagorikPayAmount(orderRow.total),
+        success_url: successUrl,
+        cancel_url: urls.cancel,
+        webhook_url: urls.webhook,
+        order_id,
+        metadata: { order_id, user_id: user.id, attempt_id: attemptId },
+      })
+    } catch (err) {
+      // Mark the claimed attempt failed so a retry is possible.
       const serviceClient = createServiceClient()
-      const { error: refError } = await serviceClient.database
+      await serviceClient.database
+        .from("payment_attempts")
+        .update({ status: "failed" })
+        .eq("id", attemptId)
+        .eq("status", "pending")
+      throw err
+    }
+
+    const gatewayRef = lastPathSegment(payment.payment_url)
+
+    const serviceClient = createServiceClient()
+    const updatePayload: Record<string, unknown> = {
+      status: "pending",
+      payment_url: payment.payment_url,
+      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+    }
+    if (gatewayRef) updatePayload.provider_transaction_id = gatewayRef
+    await serviceClient.database
+      .from("payment_attempts")
+      .update(updatePayload)
+      .eq("id", attemptId)
+
+    // Backward-compat: keep orders.payment_reference while unpaid so legacy
+    // settlement (no attempt row) can still resolve. Never overwrite on paid.
+    if (gatewayRef) {
+      await serviceClient.database
         .from("orders")
         .update({ payment_reference: gatewayRef })
         .eq("id", order_id)
         .eq("payment_status", "pending_payment")
-      if (refError) {
-        console.error("[payment] failed to store gateway reference", {
-          order_id,
-          code: (refError as { code?: string }).code,
-          message: (refError as { message?: string }).message,
-        })
-      }
-      console.info("[payment] gateway reference stored", { order_id, gatewayRef })
-    } else {
-      console.error("[payment] no gateway reference in payment_url", { payment_url: payment.payment_url })
     }
 
     return NextResponse.json({ payment_url: payment.payment_url })

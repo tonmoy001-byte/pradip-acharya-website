@@ -149,7 +149,7 @@ export async function sendResetPasswordEmail(email: string) {
     const { error } = await (client.auth as any).sendResetPasswordEmail({ email })
     if (error) {
       console.error("[auth] reset-send failed:", error.message)
-      return { error: "Failed to send reset email" }
+      return { error: error.message || "Failed to send reset email" }
     }
     return { success: true }
   } catch (e: any) {
@@ -158,6 +158,20 @@ export async function sendResetPasswordEmail(email: string) {
   }
 }
 
+export async function exchangeResetPasswordToken(email: string, code: string) {
+  try {
+    const client = getBasicClient()
+    const { data, error } = await (client.auth as any).exchangeResetPasswordToken({ email, code })
+    if (error) {
+      console.error("[auth] exchange reset token failed:", error.message)
+      return { error: error.message || error.error || "ভুল বা মেয়াদোত্তীর্ণ OTP" }
+    }
+    return { token: data?.token }
+  } catch (e: any) {
+    console.error("[auth] exchange reset token exception:", e?.message || e)
+    return { error: "Server error" }
+  }
+}
 export async function resetPassword(newPassword: string, otp: string) {
   try {
     const passwordError = validatePassword(newPassword)
@@ -165,8 +179,8 @@ export async function resetPassword(newPassword: string, otp: string) {
     const client = getBasicClient()
     const { error } = await (client.auth as any).resetPassword({ newPassword, otp })
     if (error) {
-      console.error("[auth] reset failed:", error.message)
-      return { error: "Failed to reset password" }
+      console.error("[auth] reset failed:", error)
+      return { error: error.message || error.error || "পাসওয়ার্ড রিসেট ব্যর্থ হয়েছে" }
     }
     return { success: true }
   } catch (e: any) {

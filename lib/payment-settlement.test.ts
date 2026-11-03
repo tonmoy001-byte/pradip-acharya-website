@@ -23,7 +23,9 @@ interface Call {
 
 interface Canned {
   orders: Array<Record<string, unknown>>
+  attempts?: Array<Record<string, unknown>>
   updateResult?: Array<Record<string, unknown>>
+  insertError?: unknown
   rpcError?: unknown
 }
 
@@ -38,24 +40,41 @@ interface Canned {
 function makeClient(canned: Canned) {
   const calls: Call[] = []
 
-  const chain: any = {
-    select: () => chain,
-    eq: (col: string, val: unknown) => {
-      calls.push({ fn: "eq", args: [col, val] })
-      return chain
-    },
-    in: () => chain,
-    update: (patch: unknown) => {
-      calls.push({ fn: "update", args: [patch] })
-      return chain
-    },
-    insert: (rows: unknown) => {
-      calls.push({ fn: "insert", args: [rows] })
-      return Promise.resolve({ error: null })
-    },
-    limit: async () => ({ data: canned.orders, error: null }),
-    then: (resolve: (v: unknown) => unknown) =>
-      resolve({ data: canned.updateResult ?? canned.orders, error: null }),
+  function tableData(table: string) {
+    if (table === "payment_attempts") return canned.attempts ?? []
+    if (table === "orders") return canned.orders
+    return []
+  }
+
+  const chainFor = (table: string) => {
+    let mode: "select" | "update" | "insert" = "select"
+    const chain: any = {
+      select: () => chain,
+      eq: (col: string, val: unknown) => {
+        calls.push({ fn: "eq", args: [col, val] })
+        return chain
+      },
+      in: () => chain,
+      update: (patch: unknown) => {
+        mode = "update"
+        calls.push({ fn: "update", args: [patch] })
+        return chain
+      },
+      insert: (rows: unknown) => {
+        mode = "insert"
+        calls.push({ fn: "insert", args: [rows] })
+        return chain
+      },
+      limit: async () => ({ data: tableData(table), error: null }),
+      single: async () => ({ data: tableData(table)[0] ?? null, error: null }),
+      then: (resolve: (v: unknown) => unknown) => {
+        if (mode === "insert") {
+          return resolve({ data: canned.attempts ?? [], error: canned.insertError ?? null })
+        }
+        return resolve({ data: canned.updateResult ?? tableData(table), error: null })
+      },
+    }
+    return chain
   }
 
   const client = {
@@ -63,7 +82,7 @@ function makeClient(canned: Canned) {
     database: {
       from: (table: string) => {
         calls.push({ fn: "from", args: [table] })
-        return chain
+        return chainFor(table)
       },
       rpc: (fn: string, args: unknown) => {
         calls.push({ fn: `rpc:${fn}`, args: [args] })
@@ -93,6 +112,8 @@ const ORDER = {
   user_id: "user-1",
   payment_status: "pending_payment",
   total: 150,
+  payment_reference: null,
+  currency: "BDT",
 }
 
 describe("amountCoversOrder", () => {

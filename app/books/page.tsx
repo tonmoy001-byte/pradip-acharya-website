@@ -1,7 +1,7 @@
 import { getCachedBooks } from "@/lib/public-cache"
 import { BOOK_CATEGORY_LABEL } from "@/lib/data"
 import { pageMetadata } from "@/lib/seo"
-import { breadcrumbList } from "@/lib/structured-data"
+import { breadcrumbList, itemList } from "@/lib/structured-data"
 import JsonLd from "@/components/JsonLd"
 import BookGrid from "@/components/BookGrid"
 import SortSelect from "./SortSelect"
@@ -31,6 +31,9 @@ export default async function BooksPage({ searchParams }: PageProps) {
           { name: "হোম", path: "/" },
           { name: "সকল বই", path: "/books" },
         ])}
+      />
+      <JsonLd
+        data={itemList(books.map((b) => ({ name: b.title, path: `/book/${b.id}` })))}
       />
       <div className="page-header">
         <h1>প্রদীপ কুমার আচার্য্যের বই</h1>

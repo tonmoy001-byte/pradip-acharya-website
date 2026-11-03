@@ -17,6 +17,7 @@ Copy `.env.example` to `.env.local` and fill in real values. Never commit
 `.env.local`. Required for tests and local runs:
 
 - `NEXT_PUBLIC_SITE_URL` — canonical public origin (only change needed for a custom domain)
+- `APP_URL` — server-side public origin used for NagorikPay redirect/webhook URLs (production: https://pradipbooks.insforge.site; local: http://localhost:3000). Required; app fails fast if missing or localhost in production.
 - `NEXT_PUBLIC_INSFORGE_URL`, `NEXT_PUBLIC_INSFORGE_ANON_KEY` — InsForge backend
 - `NAGORIKPAY_API_KEY`, `NAGORIKPAY_BASE_URL`, `NAGORIKPAY_WEBHOOK_SECRET` — payment gateway
 - `GMAIL_USER`, `GMAIL_APP_PASSWORD` — contact-form mail (server-only)

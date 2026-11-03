@@ -10,7 +10,7 @@ import type { Metadata } from "next"
 const RAW_SITE_URL = process.env.NEXT_PUBLIC_SITE_URL
 
 /** The site's real public origin. */
-const CANONICAL_ORIGIN = "https://pradipbooks.insforge.site"
+const CANONICAL_ORIGIN = "https://pradipuponnash.com"
 
 /**
  * Resolve the canonical origin, refusing anything Google would reject.

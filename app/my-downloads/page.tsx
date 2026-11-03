@@ -124,7 +124,7 @@ export default function MyDownloadsPage() {
                       {grant.book_title || "ইবুক"}
                     </p>
                     <p style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>
-                      ফরম্যাট: ডিজিটাল ইবুক (PDF) · অর্ডার #{grant.order_id.slice(0, 8)}...
+                      ডিজিটাল ইবুক (PDF)
                     </p>
                   </div>
                   <div>
@@ -133,9 +133,6 @@ export default function MyDownloadsPage() {
                         <a href={`/api/my-downloads/${grant.id}`} className="btn btn-primary" style={{ fontSize: "0.875rem" }}>
                           ইবুক ডাউনলোড
                         </a>
-                        <p style={{ fontSize: "0.75rem", color: "var(--ink-muted)", textAlign: "right", maxWidth: 220 }}>
-                          ডাউনলোড না হলে লিংকটি Chrome বা অন্য ব্রাউজারে খুলুন।
-                        </p>
                       </div>
                     ) : (
                       <span style={{ fontSize: "0.8125rem", color: "var(--stone)" }}>

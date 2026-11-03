@@ -7,6 +7,7 @@ import { createServiceClient } from "@/lib/insforge-service"
 import { verifyNagorikPayPayment } from "@/lib/nagorikpay"
 import { verifyWebhookSignature } from "@/lib/nagorikpay-webhook"
 import { settleNagorikPayTransaction } from "@/lib/payment-settlement"
+import { revalidatePath } from "next/cache"
 import { serverError } from "@/lib/http-errors"
 
 export const dynamic = "force-dynamic"
@@ -88,11 +89,16 @@ export async function POST(req: Request) {
     // Map outcome to webhook response codes
     switch (outcome.kind) {
       case "paid":
+        try { revalidatePath("/account/orders") } catch {}
+        try { revalidatePath("/account") } catch {}
+        try { revalidatePath("/my-downloads") } catch {}
         return NextResponse.json({ received: true })
       case "pending":
         return NextResponse.json({ received: true })
       case "failed":
         return NextResponse.json({ received: true })
+      case "duplicate":
+        return NextResponse.json({ received: true, ignored: "duplicate_payment" }, { status: 200 })
       case "amount_mismatch":
         // Permanent condition - log and return 200
         console.error("[webhook] amount mismatch", { order_id: outcome.order_id })
