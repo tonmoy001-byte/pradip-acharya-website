@@ -6,9 +6,14 @@ import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
 import { invalidateBooks } from "@/lib/public-cache"
 import { EBOOK_DELIVERY_TYPE } from "@/lib/data"
+import { assertSameOrigin } from "@/lib/origin-check"
+import { serverError } from "@/lib/http-errors"
+
+const STORAGE_KEY_RE = /^ebooks\/[\w.-]+\.pdf$/
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    assertSameOrigin(req)
     await requireAdmin()
     const { id: bookId } = await params
     const body = await req.json()
@@ -16,6 +21,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     if (!formatName || !storageKey) {
       return NextResponse.json({ error: "formatName and storageKey required" }, { status: 400 })
+    }
+    if (!STORAGE_KEY_RE.test(storageKey)) {
+      return NextResponse.json({ error: "Invalid storage key" }, { status: 400 })
     }
 
     const client = await createServerClient()
@@ -60,7 +68,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         .update({ storage_key: storageKey })
         .eq("id", existing.id)
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        console.error("[digital-assets] update failed:", error.message)
+        return NextResponse.json({ error: "Failed to save digital asset" }, { status: 500 })
       }
     } else {
       // Insert
@@ -68,14 +77,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         .from("digital_assets")
         .insert({ format_id: formatId, storage_key: storageKey })
       if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 })
+        console.error("[digital-assets] insert failed:", error.message)
+        return NextResponse.json({ error: "Failed to save digital asset" }, { status: 500 })
       }
     }
 
     invalidateBooks(bookId)
     return NextResponse.json({ success: true })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("digital assets", err)
   }
 }

@@ -7,6 +7,7 @@ import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
 import { EBOOK_DELIVERY_TYPE } from "@/lib/data"
+import { serverError } from "@/lib/http-errors"
 
 export async function GET() {
   try {
@@ -18,14 +19,17 @@ export async function GET() {
       .select("id, payment_status, total")
 
     if (allErr) {
-      return NextResponse.json({ error: allErr.message }, { status: 500 })
+      return NextResponse.json({ error: "Failed to fetch stats" }, { status: 500 })
     }
 
     const orders = allOrders || []
     const totalOrders = orders.length
     const totalRevenue = orders
       .filter((o: any) => o.payment_status === "paid")
-      .reduce((sum, o: any) => sum + Number(o.total), 0)
+      .reduce((sum, o: any) => {
+        const n = Number(o.total)
+        return sum + (Number.isFinite(n) ? n : 0)
+      }, 0)
 
     // Paid ebook order lines that have not been granted a download yet.
     const paidOrderIds = new Set(
@@ -57,8 +61,8 @@ export async function GET() {
       totalRevenue,
       pendingDownloads,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin stats", err)
   }
 }

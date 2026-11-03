@@ -17,16 +17,23 @@ export default function PaymentCancelPage() {
       <div className="order-confirm">
         <h1>পেমেন্ট বাতিল</h1>
         <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)" }}>
-          আপনি পেমেন্ট প্রক্রিয়া বাতিল করেছেন।
+          পেমেন্ট বাতিল হয়েছে, আপনার টাকা কাটা হয়নি
         </p>
         <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)", fontSize: "0.875rem" }}>
-          চিন্তা করবেন না — আপনার অর্ডার সুরক্ষিত আছে। আপনি <Link href="/account/orders" style={{ fontWeight: 600 }}>আমার অর্ডার থেকে পেমেন্ট করুন</Link>।
+          আপনার অর্ডার সুরক্ষিত আছে। নিচের বাটনে ক্লিক করে আবার পেমেন্ট চেষ্টা করুন।
         </p>
         <div style={{ display: "flex", gap: "var(--sp-3)", flexWrap: "wrap" }}>
+          <Link href="/checkout" className="btn btn-primary">
+            আবার চেষ্টা করুন
+          </Link>
           {orderId && (
-            <Link href={`/account/orders`} className="btn btn-primary">আমার অর্ডার</Link>
+            <Link href="/account/orders" className="btn btn-secondary">
+              আমার অর্ডার
+            </Link>
           )}
-          <Link href="/books" className="btn btn-secondary">আরও বই দেখুন</Link>
+          <Link href="/books" className="btn btn-secondary">
+            আরও বই দেখুন
+          </Link>
         </div>
       </div>
     </div>

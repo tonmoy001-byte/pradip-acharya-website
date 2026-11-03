@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import Link from "next/link"
+import PasswordInput from "@/components/PasswordInput"
 import SeoNoindex from "@/components/SeoNoindex"
 import { safeNextPath } from "@/lib/safe-redirect"
 
@@ -48,8 +49,8 @@ export default function LoginPage() {
           setSubmitting(false)
           return
         }
-        if (password.length < 6) {
-          setError("পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে")
+        if (password.length < 8) {
+          setError("পাসওয়ার্ড কমপক্ষে ৮ অক্ষর হতে হবে")
           setSubmitting(false)
           return
         }
@@ -174,15 +175,12 @@ export default function LoginPage() {
 
         <div className="form-group" style={{ marginBottom: "var(--sp-4)" }}>
           <label className="form-label" htmlFor="auth-password">পাসওয়ার্ড</label>
-          <input
+          <PasswordInput
             id="auth-password"
-            type="password"
-            className="form-input"
-            style={{ width: "100%" }}
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={setPassword}
             required
-            minLength={6}
+            minLength={8}
             autoComplete={tab === "signin" ? "current-password" : "new-password"}
           />
         </div>
@@ -190,17 +188,14 @@ export default function LoginPage() {
         {tab === "signup" && (
           <div className="form-group" style={{ marginBottom: "var(--sp-4)" }}>
             <label className="form-label" htmlFor="auth-confirm">পাসওয়ার্ড নিশ্চিত করুন</label>
-            <input
-              id="auth-confirm"
-              type="password"
-              className="form-input"
-              style={{ width: "100%" }}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              minLength={6}
-              autoComplete="new-password"
-            />
+          <PasswordInput
+            id="auth-confirm"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            required
+            minLength={8}
+            autoComplete="new-password"
+          />
           </div>
         )}
 
@@ -227,14 +222,6 @@ export default function LoginPage() {
               : "অ্যাকাউন্ট তৈরি করুন"}
         </button>
       </form>
-
-      {tab === "signin" && (
-        <div style={{ textAlign: "center", marginTop: "var(--sp-4)" }}>
-          <Link href={`/verify?next=${encodeURIComponent(nextPath)}`} style={{ color: "var(--color-muted)", fontSize: "0.875rem" }}>
-            ইমেইল যাচাই করতে চান?
-          </Link>
-        </div>
-      )}
     </div>
   )
 }

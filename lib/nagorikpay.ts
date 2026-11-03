@@ -19,6 +19,7 @@ interface NagorikPayCreatePayload {
   success_url: string
   cancel_url: string
   webhook_url?: string
+  order_id?: string
   metadata?: Record<string, unknown>
 }
 
@@ -65,24 +66,31 @@ export async function createNagorikPayPayment(
   })
 
   const text = await res.text()
+
   if (!res.ok) {
-    throw new Error(`NagorikPay create failed: ${res.status} ${text}`)
+    // Gateway error bodies can contain stack fragments and internal
+    // detail. Log them server-side; throw a short, safe message.
+    console.error("[nagorikpay] create HTTP error", { status: res.status, body: text })
+    throw new Error(`NagorikPay create failed: HTTP ${res.status}`)
   }
 
   let data: NagorikPayCreateResponse
   try {
     data = JSON.parse(text)
   } catch {
-    throw new Error(`NagorikPay create returned non-JSON: ${text}`)
+    console.error("[nagorikpay] create returned non-JSON", { body: text })
+    throw new Error("NagorikPay create failed: non-JSON response")
   }
 
   if (!data.payment_url || typeof data.payment_url !== "string") {
     // Treat any non-empty payment_url as success — the gateway sometimes
-    // returns status as 1/"true" rather than boolean true. On failure,
-    // surface the raw payload: gateway messages are short and easy to lose.
-    throw new Error(
-      `NagorikPay create failed: message=${JSON.stringify((data as { message?: unknown }).message)} status=${JSON.stringify(data.status)} payload=${text}`,
-    )
+    // returns status as 1/"true" rather than boolean true.
+    console.error("[nagorikpay] create returned no payment_url", {
+      status: data.status,
+      message: (data as { message?: unknown }).message,
+      payload: text,
+    })
+    throw new Error("NagorikPay create failed: no payment_url returned")
   }
 
   return data
@@ -106,20 +114,48 @@ export async function verifyNagorikPayPayment(
 
   const text = await res.text()
   if (!res.ok) {
-    throw new Error(`NagorikPay verify failed: ${res.status} ${text}`)
+    console.error("[nagorikpay] verify HTTP error", { status: res.status, body: text })
+    throw new Error(`NagorikPay verify failed: HTTP ${res.status}`)
   }
 
   let data: NagorikPayVerifyResponse | { status: false; message: string }
   try {
     data = JSON.parse(text)
   } catch {
-    throw new Error(`NagorikPay verify returned non-JSON: ${text}`)
+    console.error("[nagorikpay] verify returned non-JSON", { body: text })
+    throw new Error("NagorikPay verify failed: non-JSON response")
   }
 
   if ((data as { status: boolean }).status === false) {
     const message = (data as { message?: string }).message || text
-    throw new Error(`NagorikPay verify error: ${message}`)
+    console.error("[nagorikpay] verify error", { message })
+    throw new Error("NagorikPay verify failed")
   }
 
-  return data as NagorikPayVerifyResponse
+  // The gateway sometimes returns metadata as a JSON-encoded string and
+  // sometimes omits it entirely. Normalize so callers can rely on an object.
+  const verifyData = data as NagorikPayVerifyResponse
+  verifyData.metadata = normalizeMetadata(verifyData.metadata)
+
+  return verifyData
+}
+
+/** Coerce gateway metadata (object | JSON string | missing) into a plain object. */
+function normalizeMetadata(raw: unknown): Record<string, any> {
+  if (raw == null) return {}
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, any>
+      }
+    } catch {
+      // fall through — unparseable string becomes {}
+    }
+    return {}
+  }
+  if (typeof raw === "object" && !Array.isArray(raw)) {
+    return raw as Record<string, any>
+  }
+  return {}
 }

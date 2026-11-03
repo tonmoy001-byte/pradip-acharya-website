@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { resetPassword } from "@/app/actions/auth"
 import Link from "next/link"
+import PasswordInput from "@/components/PasswordInput"
 import SeoNoindex from "@/components/SeoNoindex"
 
 export default function ResetPasswordPage() {
@@ -43,8 +44,8 @@ export default function ResetPasswordPage() {
     setError("")
     setMessage("")
 
-    if (newPassword.length < 6) {
-      setError("পাসওয়ার্ড কমপক্ষে ৬ অক্ষর হতে হবে")
+    if (newPassword.length < 8) {
+      setError("পাসওয়ার্ড কমপক্ষে ৮ অক্ষর হতে হবে")
       return
     }
     if (newPassword !== confirmPassword) {
@@ -106,32 +107,26 @@ export default function ResetPasswordPage() {
         <form onSubmit={handleSubmit}>
           <div className="form-group" style={{ marginBottom: "var(--sp-4)" }}>
             <label className="form-label" htmlFor="new-password">নতুন পাসওয়ার্ড</label>
-            <input
-              id="new-password"
-              type="password"
-              className="form-input"
-              style={{ width: "100%" }}
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-              minLength={6}
-              autoComplete="new-password"
-            />
+          <PasswordInput
+            id="new-password"
+            value={newPassword}
+            onChange={setNewPassword}
+            required
+            minLength={8}
+            autoComplete="new-password"
+          />
           </div>
 
           <div className="form-group" style={{ marginBottom: "var(--sp-6)" }}>
             <label className="form-label" htmlFor="confirm-password">পাসওয়ার্ড নিশ্চিত করুন</label>
-            <input
-              id="confirm-password"
-              type="password"
-              className="form-input"
-              style={{ width: "100%" }}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              minLength={6}
-              autoComplete="new-password"
-            />
+          <PasswordInput
+            id="confirm-password"
+            value={confirmPassword}
+            onChange={setConfirmPassword}
+            required
+            minLength={8}
+            autoComplete="new-password"
+          />
           </div>
 
           <button

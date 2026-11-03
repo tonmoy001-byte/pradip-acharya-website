@@ -48,8 +48,8 @@ export default async function BookDetailPage({ params }: { params: Promise<{ id:
 
   // Visible FAQ and FAQPage markup share this array so they can never drift.
   // Every answer states only what the code supports: PDF format
-  // (encodingFormat in structured-data), per-grant max_downloads limits
-  // (my-downloads route), and the /contact ~24h support note.
+  // (encodingFormat in structured-data), unlimited downloads for a paid
+  // non-revoked grant, and the /contact ~24h support note.
   const faq = [
     {
       q: "ইবুকের ফরম্যাট কী?",
@@ -58,10 +58,6 @@ export default async function BookDetailPage({ params }: { params: Promise<{ id:
     {
       q: "কোন ডিভাইসে পড়া যাবে?",
       a: "যেকোনো মোবাইল, ট্যাব, কম্পিউটার বা ই-রিডারে — যেখানে PDF পড়া যায়।",
-    },
-    {
-      q: "ডাউনলোড কতবার করা যাবে?",
-      a: "প্রতিটি অর্ডারে নির্দিষ্ট সংখ্যক ডাউনলোডের সুযোগ থাকে। সীমা শেষ হয়ে গেলে যোগাযোগ ফর্মে বার্তা পাঠান।",
     },
     {
       q: "পেমেন্টের পর লিংক না পেলে কী করব?",

@@ -5,8 +5,12 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { serverError } from "@/lib/http-errors"
+import { assertSameOrigin } from "@/lib/origin-check"
 
 export const dynamic = "force-dynamic"
+
+const NO_STORE = { "Cache-Control": "no-store" }
 
 export async function GET(req: Request) {
   try {
@@ -23,8 +27,8 @@ export async function GET(req: Request) {
 
     if (error) {
       return NextResponse.json(
-        { error: error.message || "Failed to fetch profile" },
-        { status: 500, headers: { "Cache-Control": "no-store" } }
+        { error: "Failed to fetch profile" },
+        { status: 500, headers: NO_STORE }
       )
     }
 
@@ -49,23 +53,21 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ data: result }, { headers: { "Cache-Control": "no-store" } })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) {
       const res = new Response(err.body, {
         status: err.status,
-        headers: { ...Object.fromEntries(err.headers), "Cache-Control": "no-store" },
+        headers: { ...Object.fromEntries(err.headers), ...NO_STORE },
       })
       return res
     }
-    return NextResponse.json(
-      { error: err.message || "Internal server error" },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
-    )
+    return serverError("profile GET", err, { headers: NO_STORE })
   }
 }
 
 export async function PUT(req: Request) {
   try {
+    assertSameOrigin(req)
     const user = await requireUser()
     const client = await createServerClient()
 
@@ -75,7 +77,7 @@ export async function PUT(req: Request) {
     if (!full_name) {
       return NextResponse.json(
         { error: "Full name is required" },
-        { status: 400, headers: { "Cache-Control": "no-store" } }
+        { status: 400, headers: NO_STORE }
       )
     }
 
@@ -114,23 +116,20 @@ export async function PUT(req: Request) {
 
     if (error) {
       return NextResponse.json(
-        { error: error.message || "Failed to update profile" },
-        { status: 500, headers: { "Cache-Control": "no-store" } }
+        { error: "Failed to update profile" },
+        { status: 500, headers: NO_STORE }
       )
     }
 
-    return NextResponse.json({ data }, { headers: { "Cache-Control": "no-store" } })
-  } catch (err: any) {
+    return NextResponse.json({ data }, { headers: NO_STORE })
+  } catch (err: unknown) {
     if (err instanceof Response) {
       const res = new Response(err.body, {
         status: err.status,
-        headers: { ...Object.fromEntries(err.headers), "Cache-Control": "no-store" },
+        headers: { ...Object.fromEntries(err.headers), ...NO_STORE },
       })
       return res
     }
-    return NextResponse.json(
-      { error: err.message || "Internal server error" },
-      { status: 500, headers: { "Cache-Control": "no-store" } }
-    )
+    return serverError("profile PUT", err, { headers: NO_STORE })
   }
 }

@@ -13,20 +13,27 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     const originalFetch = window.fetch
-
-    window.fetch = async (...args) => {
+    const wrapped: typeof window.fetch = async (...args) => {
       const res = await originalFetch(...args)
 
       const input = args[0]
-      const url =
+      const rawUrl =
         typeof input === "string"
           ? input
           : input instanceof URL
             ? input.href
             : (input as Request)?.url ?? ""
-      const isAdminApi = url.includes("/api/admin") || url.includes("/api/profile")
+      let path = ""
+      try {
+        path = new URL(rawUrl, window.location.origin).pathname
+      } catch {
+        // Relative or opaque URL — not an admin API call.
+      }
 
-      if (isAdminApi) {
+      // Admin API only. /api/profile and every other surface are left
+      // alone: they have their own 401 handling, and patching them here
+      // would mislabel ordinary session expiry as an admin error.
+      if (path.startsWith("/api/admin/")) {
         if (res.status === 401 && !redirected.current) {
           redirected.current = true
           router.replace("/login")
@@ -40,8 +47,10 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
       return res
     }
 
+    window.fetch = wrapped
     return () => {
-      window.fetch = originalFetch
+      // Only undo our own patch; never clobber someone else's wrapper.
+      if (window.fetch === wrapped) window.fetch = originalFetch
     }
   }, [router])
 

@@ -4,14 +4,26 @@
 // Locks in the requirement that the PDF is only ever served to the
 // authenticated, authorized owner of a paid ebook order item, and that
 // tampering with grant / order / order-item / format ids yields nothing.
+//
+// digital_assets and the private storage bucket are admin-only under RLS,
+// so the route must escalate to the service client for those two reads —
+// but only after every authorization check has passed. The service client
+// must never be constructed on a rejection path.
+//
+// Downloads are unlimited (no expiry, no count limit). Browser navigations
+// (Sec-Fetch-Dest: document) get a 303 redirect to /my-downloads?dl_error=…
+// so Android / in-app browsers never see raw JSON; fetch callers keep JSON.
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
 const requireUser = vi.fn()
-const storageDownload = vi.fn()
+const createServiceClient = vi.fn()
+const serviceStorageDownload = vi.fn()
+const consumeDownload = vi.fn()
 
-// Table-scoped query builders. Each returns a chainable stub whose terminal
-// method is `limit` (and, for `orders` in this route, nothing else).
+// Table-scoped query builders for the customer-session client (steps 1–2
+// and consume_download). The service client gets its own builder so tests
+// can prove which client read which table.
 type Row = Record<string, any>
 
 const tables: Record<string, Row[]> = {
@@ -61,6 +73,20 @@ function makeBuilder(table: string) {
   return builder
 }
 
+// Which client last touched which table / storage — for assertions.
+const userClientTables: string[] = []
+const serviceClientTables: string[] = []
+
+function makeUserBuilder(table: string) {
+  userClientTables.push(table)
+  return makeBuilder(table)
+}
+
+function makeServiceBuilder(table: string) {
+  serviceClientTables.push(table)
+  return makeBuilder(table)
+}
+
 vi.mock("@/lib/auth-helpers", () => ({
   requireUser: () => requireUser(),
 }))
@@ -68,12 +94,32 @@ vi.mock("@/lib/auth-helpers", () => ({
 vi.mock("@/lib/insforge-server", () => ({
   createServerClient: async () => ({
     database: {
-      from: (table: string) => makeBuilder(table),
+      from: (table: string) => makeUserBuilder(table),
+      rpc: (...args: any[]) => consumeDownload(...args),
     },
+    // The customer-session client must never download from digital-books.
     storage: {
-      from: () => ({ download: (key: string) => storageDownload(key) }),
+      from: () => ({
+        download: () => {
+          throw new Error("customer-session storage download must not be used")
+        },
+      }),
     },
   }),
+}))
+
+vi.mock("@/lib/insforge-service", () => ({
+  createServiceClient: () => {
+    createServiceClient()
+    return {
+      database: {
+        from: (table: string) => makeServiceBuilder(table),
+      },
+      storage: {
+        from: () => ({ download: (key: string) => serviceStorageDownload(key) }),
+      },
+    }
+  },
 }))
 
 import { GET } from "./route"
@@ -86,9 +132,10 @@ function grant(overrides: Row = {}) {
     id: "grant-1",
     user_id: ME,
     order_item_id: "item-1",
-    max_downloads: 3,
+    // Unlimited downloads: limit and expiry are no longer enforced.
+    max_downloads: null,
     download_count: 0,
-    expires_at: new Date(Date.now() + 86_400_000).toISOString(),
+    expires_at: null,
     revoked_at: null,
     ...overrides,
   }
@@ -101,27 +148,46 @@ function orderItem(overrides: Row = {}) {
     book_id: "book-1",
     format_id: "fmt-1",
     delivery_type_snapshot: "digital",
+    title_snapshot: "ছেঁড়া পুষ্প",
     ...overrides,
   }
 }
 
-function call(grantId = "grant-1") {
-  return GET(new Request("https://site.test"), {
+function call(grantId = "grant-1", headers: Record<string, string> = {}) {
+  return GET(new Request("https://site.test", { headers }), {
     params: Promise.resolve({ grantId }),
   })
+}
+
+/** Simulate a top-level browser navigation (Android Chrome / in-app). */
+function callAsBrowserNavigation(grantId = "grant-1") {
+  return call(grantId, { "sec-fetch-dest": "document" })
+}
+
+/** Service client must not have been constructed. */
+function expectNoServiceClient() {
+  expect(createServiceClient).not.toHaveBeenCalled()
+  expect(serviceClientTables).toEqual([])
+  expect(serviceStorageDownload).not.toHaveBeenCalled()
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
   requireUser.mockResolvedValue({ id: ME })
+  userClientTables.length = 0
+  serviceClientTables.length = 0
   tables.download_grants = [grant()]
   tables.order_items = [orderItem()]
   tables.orders = [{ id: "order-1", user_id: ME, payment_status: "paid" }]
   tables.digital_assets = [
     { format_id: "fmt-1", active: true, storage_key: "ebooks/1700-abc123.pdf" },
   ]
-  storageDownload.mockResolvedValue({
+  serviceStorageDownload.mockResolvedValue({
     data: new Blob([new Uint8Array([1, 2, 3])], { type: "application/pdf" }),
+    error: null,
+  })
+  consumeDownload.mockResolvedValue({
+    data: { storage_key: "ebooks/1700-abc123.pdf", download_count: 1 },
     error: null,
   })
 })
@@ -133,92 +199,292 @@ describe("GET /api/my-downloads/[grantId]", () => {
     expect(res.headers.get("Content-Type")).toBe("application/pdf")
     expect(res.headers.get("Content-Disposition")).toContain("attachment")
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff")
-    expect(storageDownload).toHaveBeenCalledWith("ebooks/1700-abc123.pdf")
+    expect(serviceStorageDownload).toHaveBeenCalledWith("ebooks/1700-abc123.pdf")
+    expect(consumeDownload).toHaveBeenCalledWith("consume_download", {
+      p_grant_id: "grant-1",
+    })
   })
 
-  it("refuses a grant that belongs to another customer", async () => {
+  it("serves a grant with a high download count and no expiry (unlimited)", async () => {
+    tables.download_grants = [
+      grant({ download_count: 999, max_downloads: null, expires_at: null }),
+    ]
+    const res = await call()
+    expect(res.status).toBe(200)
+    expect(consumeDownload).toHaveBeenCalledWith("consume_download", {
+      p_grant_id: "grant-1",
+    })
+  })
+
+  it("serves a grant whose expires_at is in the past (unlimited)", async () => {
+    tables.download_grants = [
+      grant({ expires_at: new Date(Date.now() - 86_400_000).toISOString() }),
+    ]
+    const res = await call()
+    expect(res.status).toBe(200)
+  })
+
+  it("names the download after the book title with a UTF-8 (Bengali) filename", async () => {
+    const res = await call()
+    expect(res.status).toBe(200)
+    const cd = res.headers.get("Content-Disposition") || ""
+    expect(cd).toContain("filename*=UTF-8''")
+    expect(cd).toContain(`filename*=UTF-8''${encodeURIComponent("ছেঁড়া পুষ্প.pdf")}`)
+    expect(cd).toMatch(/filename="[^"]+\.pdf"/)
+  })
+
+  it("uses the service client for digital_assets and storage, and the user client for consume_download", async () => {
+    const res = await call()
+    expect(res.status).toBe(200)
+    expect(createServiceClient).toHaveBeenCalledTimes(1)
+    expect(serviceClientTables).toContain("digital_assets")
+    expect(serviceStorageDownload).toHaveBeenCalledWith("ebooks/1700-abc123.pdf")
+    // Steps 1–2 and consume_download stay on the customer-session client.
+    expect(userClientTables).toContain("download_grants")
+    expect(userClientTables).toContain("order_items")
+    expect(userClientTables).toContain("orders")
+    expect(consumeDownload).toHaveBeenCalledWith("consume_download", {
+      p_grant_id: "grant-1",
+    })
+    // The customer-session client never read digital_assets.
+    expect(userClientTables).not.toContain("digital_assets")
+  })
+
+  it("scopes the digital_assets lookup to the authorized order item's format_id", async () => {
+    const res = await call()
+    expect(res.status).toBe(200)
+    expect(appliedFilters.digital_assets).toEqual(
+      expect.arrayContaining([
+        ["format_id", "fmt-1"],
+        ["active", true],
+      ]),
+    )
+  })
+
+  it("fetches the file before atomically consuming the download", async () => {
+    const res = await call()
+    expect(res.status).toBe(200)
+    expect(serviceStorageDownload.mock.invocationCallOrder[0]).toBeLessThan(
+      consumeDownload.mock.invocationCallOrder[0],
+    )
+  })
+
+  it("returns 403 with a revoked code when consume_download reports revocation", async () => {
+    consumeDownload.mockResolvedValue({
+      data: null,
+      error: { message: "Download grant has been revoked" },
+    })
+    const res = await call()
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toMatch(/revoked/i)
+  })
+
+  it("returns 403 with a not_found code when consume_download fails otherwise", async () => {
+    consumeDownload.mockResolvedValue({
+      data: null,
+      error: { message: "Download grant not found" },
+    })
+    const res = await call()
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toBe("Download grant not found or not authorized")
+  })
+
+  it("refuses when the atomic consume returns no result", async () => {
+    consumeDownload.mockResolvedValue({ data: null, error: null })
+    const res = await call()
+    expect(res.status).toBe(403)
+  })
+
+  it("returns 500 (not 403) when the consume call itself fails", async () => {
+    consumeDownload.mockRejectedValue(new Error("db down"))
+    const res = await call()
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBe("Something went wrong. Please try again.")
+  })
+
+  it("refuses a grant that belongs to another customer without touching the service client", async () => {
     tables.download_grants = [grant({ user_id: OTHER })]
     const res = await call()
     expect(res.status).toBe(403)
-    expect(storageDownload).not.toHaveBeenCalled()
+    expectNoServiceClient()
   })
 
-  it("refuses when the backing order is not paid", async () => {
-    tables.orders = [{ id: "order-1", user_id: ME, payment_status: "pending_payment" }]
-    const res = await call()
-    expect(res.status).toBe(403)
-    expect(storageDownload).not.toHaveBeenCalled()
-  })
-
-  it("refuses when the order belongs to another customer", async () => {
-    tables.orders = [{ id: "order-1", user_id: OTHER, payment_status: "paid" }]
-    const res = await call()
-    expect(res.status).toBe(403)
-    expect(storageDownload).not.toHaveBeenCalled()
-  })
-
-  it("refuses a non-digital (legacy paperbook) order line", async () => {
-    tables.order_items = [orderItem({ delivery_type_snapshot: "physical" })]
-    const res = await call()
-    expect(res.status).toBe(403)
-    expect(storageDownload).not.toHaveBeenCalled()
-  })
-
-  it("refuses a revoked grant", async () => {
-    tables.download_grants = [grant({ revoked_at: new Date().toISOString() })]
-    const res = await call()
-    expect(res.status).toBe(403)
-    expect(storageDownload).not.toHaveBeenCalled()
-  })
-
-  it("refuses an expired grant", async () => {
-    tables.download_grants = [
-      grant({ expires_at: new Date(Date.now() - 1000).toISOString() }),
-    ]
-    const res = await call()
-    expect(res.status).toBe(403)
-    expect(storageDownload).not.toHaveBeenCalled()
-  })
-
-  it("refuses once the download limit is reached", async () => {
-    tables.download_grants = [grant({ download_count: 3, max_downloads: 3 })]
-    const res = await call()
-    expect(res.status).toBe(403)
-    expect(storageDownload).not.toHaveBeenCalled()
-  })
-
-  it("refuses when no PDF is attached to the format", async () => {
-    tables.digital_assets = []
-    const res = await call()
-    expect(res.status).toBe(404)
-    expect(storageDownload).not.toHaveBeenCalled()
-  })
-
-  it("refuses an unknown grant id without leaking whether it exists", async () => {
+  it("refuses an unknown grant id without touching the service client", async () => {
     const res = await call("grant-does-not-exist")
     expect(res.status).toBe(403)
     const body = await res.json()
     expect(body.error).toBe("Download grant not found or not authorized")
-    expect(storageDownload).not.toHaveBeenCalled()
+    expectNoServiceClient()
+  })
+
+  it("refuses a revoked grant without touching the service client", async () => {
+    tables.download_grants = [grant({ revoked_at: new Date().toISOString() })]
+    const res = await call()
+    expect(res.status).toBe(403)
+    expectNoServiceClient()
+  })
+
+  it("refuses a non-digital order line without touching the service client", async () => {
+    tables.order_items = [orderItem({ delivery_type_snapshot: "physical" })]
+    const res = await call()
+    expect(res.status).toBe(403)
+    expectNoServiceClient()
+  })
+
+  it("refuses an unpaid order without touching the service client", async () => {
+    tables.orders = [{ id: "order-1", user_id: ME, payment_status: "pending_payment" }]
+    const res = await call()
+    expect(res.status).toBe(403)
+    expectNoServiceClient()
+  })
+
+  it("refuses an order that belongs to another customer without touching the service client", async () => {
+    tables.orders = [{ id: "order-1", user_id: OTHER, payment_status: "paid" }]
+    const res = await call()
+    expect(res.status).toBe(403)
+    expectNoServiceClient()
+  })
+
+  it("refuses everything when the user is not authenticated without touching the service client", async () => {
+    requireUser.mockRejectedValue(new Response("{}", { status: 401 }))
+    const res = await call()
+    expect(res.status).toBe(401)
+    expectNoServiceClient()
+  })
+
+  it("returns 404 when no active digital_assets row exists", async () => {
+    tables.digital_assets = []
+    const res = await call()
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.error).toBe("No file attached to this order")
+    expect(serviceStorageDownload).not.toHaveBeenCalled()
+    expect(consumeDownload).not.toHaveBeenCalled()
+  })
+
+  it("returns 404 when no active digital_assets row exists for the format", async () => {
+    tables.digital_assets = [
+      { format_id: "fmt-1", active: false, storage_key: "ebooks/old.pdf" },
+    ]
+    const res = await call()
+    expect(res.status).toBe(404)
+    expect(serviceStorageDownload).not.toHaveBeenCalled()
   })
 
   it("does not resolve a digital asset for a different format id", async () => {
-    // The asset lookup is scoped to the order item's format_id; changing the
-    // order item must not reach another format's file.
     tables.order_items = [orderItem({ format_id: "fmt-other" })]
     tables.digital_assets = [
       { format_id: "fmt-1", active: true, storage_key: "ebooks/1700-abc123.pdf" },
     ]
     const res = await call()
-    // No asset is attached to fmt-other, so nothing is served.
     expect(res.status).toBe(404)
-    expect(storageDownload).not.toHaveBeenCalled()
+    expect(serviceStorageDownload).not.toHaveBeenCalled()
+    expect(consumeDownload).not.toHaveBeenCalled()
   })
 
-  it("refuses everything when the user is not authenticated", async () => {
-    requireUser.mockRejectedValue(new Response("{}", { status: 401 }))
+  it("returns 404 and does not consume a download when the storage download fails", async () => {
+    serviceStorageDownload.mockResolvedValue({
+      data: null,
+      error: { message: "object not found" },
+    })
     const res = await call()
-    expect(res.status).toBe(401)
-    expect(storageDownload).not.toHaveBeenCalled()
+    expect(res.status).toBe(404)
+    const body = await res.json()
+    expect(body.error).toBe("File not found in storage")
+    expect(consumeDownload).not.toHaveBeenCalled()
+  })
+
+  // ===== Browser navigation: 303 redirects with dl_error =====
+
+  it("303-redirects a browser navigation to /my-downloads?dl_error=not_found for an unknown grant", async () => {
+    const res = await callAsBrowserNavigation("grant-does-not-exist")
+    expect(res.status).toBe(303)
+    expect(res.headers.get("Location")).toBe("/my-downloads?dl_error=not_found")
+  })
+
+  it("303-redirects a browser navigation with dl_error=not_paid for an unpaid order", async () => {
+    tables.orders = [{ id: "order-1", user_id: ME, payment_status: "pending_payment" }]
+    const res = await callAsBrowserNavigation()
+    expect(res.status).toBe(303)
+    expect(res.headers.get("Location")).toBe("/my-downloads?dl_error=not_paid")
+  })
+
+  it("303-redirects a browser navigation with dl_error=not_found for another customer's grant", async () => {
+    tables.download_grants = [grant({ user_id: OTHER })]
+    const res = await callAsBrowserNavigation()
+    expect(res.status).toBe(303)
+    expect(res.headers.get("Location")).toBe("/my-downloads?dl_error=not_found")
+  })
+
+  it("303-redirects a browser navigation with dl_error=revoked when consume reports revocation", async () => {
+    consumeDownload.mockResolvedValue({
+      data: null,
+      error: { message: "Download grant has been revoked" },
+    })
+    const res = await callAsBrowserNavigation()
+    expect(res.status).toBe(303)
+    expect(res.headers.get("Location")).toBe("/my-downloads?dl_error=revoked")
+  })
+
+  it("303-redirects a browser navigation with dl_error=no_file when no asset is attached", async () => {
+    tables.digital_assets = []
+    const res = await callAsBrowserNavigation()
+    expect(res.status).toBe(303)
+    expect(res.headers.get("Location")).toBe("/my-downloads?dl_error=no_file")
+  })
+
+  it("303-redirects a browser navigation with dl_error=storage when the storage download fails", async () => {
+    serviceStorageDownload.mockResolvedValue({
+      data: null,
+      error: { message: "object not found" },
+    })
+    const res = await callAsBrowserNavigation()
+    expect(res.status).toBe(303)
+    expect(res.headers.get("Location")).toBe("/my-downloads?dl_error=storage")
+    expect(consumeDownload).not.toHaveBeenCalled()
+  })
+
+  it("treats Accept: text/html as a browser navigation too", async () => {
+    const res = await call("grant-does-not-exist", {
+      accept: "text/html,application/xhtml+xml",
+    })
+    expect(res.status).toBe(303)
+    expect(res.headers.get("Location")).toBe("/my-downloads?dl_error=not_found")
+  })
+
+  it("keeps JSON for non-navigation (fetch) requests", async () => {
+    const res = await call("grant-does-not-exist", {
+      accept: "application/json",
+      "sec-fetch-dest": "empty",
+    })
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toBe("Download grant not found or not authorized")
+  })
+
+  it("keeps JSON for a navigation-less request with no Accept header", async () => {
+    const res = await call("grant-does-not-exist")
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toBe("Download grant not found or not authorized")
+  })
+
+  it("sets Content-Length only when blob.size is a number", async () => {
+    const res = await call()
+    expect(res.status).toBe(200)
+    expect(res.headers.get("Content-Length")).toBe("3")
+  })
+
+  it("omits Content-Length when blob.size is missing", async () => {
+    const blobNoSize = new Blob([new Uint8Array([1])], { type: "application/pdf" })
+    // Simulate a blob-like without a numeric size.
+    Object.defineProperty(blobNoSize, "size", { value: undefined })
+    serviceStorageDownload.mockResolvedValue({ data: blobNoSize, error: null })
+    const res = await call()
+    expect(res.status).toBe(200)
+    expect(res.headers.get("Content-Length")).toBeNull()
   })
 })

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { serverError } from "@/lib/http-errors"
 import { EBOOK_DELIVERY_TYPE } from "@/lib/data"
 
 export async function GET() {
@@ -20,7 +21,10 @@ export async function GET() {
     const paidOrders = orders.filter((o: any) => o.payment_status === "paid").length
     const totalRevenue = orders
       .filter((o: any) => o.payment_status === "paid")
-      .reduce((sum: number, o: any) => sum + Number(o.total), 0)
+      .reduce((sum: number, o: any) => {
+        const n = Number(o.total)
+        return sum + (Number.isFinite(n) ? n : 0)
+      }, 0)
 
     // Digital-only: "pending" work means paid ebook lines without a download grant.
     const paidOrderIds = orders
@@ -70,8 +74,8 @@ export async function GET() {
       recentOrders,
       recentPosts,
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin dashboard", err)
   }
 }

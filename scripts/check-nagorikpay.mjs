@@ -1,7 +1,7 @@
 // scripts/check-nagorikpay.mjs
 // Creates ONE pending payment session and probes its URL server-side.
 // Usage (PowerShell):
-//   $env:NAGORIKPAY_API_KEY="..." ; $env:SITE_URL="https://pradipbooks.insforge.site" ; node scripts/check-nagorikpay.mjs
+//   $env:NAGORIKPAY_API_KEY="..." ; $env:SITE_URL="https://pradipuponnash.com" ; node scripts/check-nagorikpay.mjs
 //
 // WARNING: This creates a real (unpaid, pending) payment session in LIVE mode.
 // Do not run casually. The API key is never printed.

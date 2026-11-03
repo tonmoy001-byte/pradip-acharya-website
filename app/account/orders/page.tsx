@@ -7,6 +7,8 @@ import { money } from "@/lib/format"
 import SeoNoindex from "@/components/SeoNoindex"
 import { isAllowedPaymentUrl } from "@/lib/payment-url"
 
+export const dynamic = "force-dynamic"
+
 interface OrderItem {
   id: string
   title_snapshot: string
@@ -87,8 +89,8 @@ export default function AccountOrdersPage() {
     async function fetchOrders() {
       try {
         const [ordersRes, downloadsRes] = await Promise.allSettled([
-          fetch("/api/my-orders", { credentials: "include" }),
-          fetch("/api/my-downloads", { credentials: "include" }),
+          fetch(`/api/my-orders?_=${Date.now()}`, { credentials: "include", cache: "no-store" }),
+          fetch(`/api/my-downloads?_=${Date.now()}`, { credentials: "include", cache: "no-store" }),
         ])
 
         if (ordersRes.status !== "fulfilled" || !ordersRes.value.ok) {
@@ -354,7 +356,12 @@ export default function AccountOrdersPage() {
                               body: JSON.stringify({ order_id: order.id }),
                             })
                             const data = await res.json()
-                            if (!res.ok) throw new Error(data.error || "পেমেন্ট তৈরি ব্যর্থ")
+                            if (!res.ok) {
+                              if (res.status === 409 && data?.error === "payment_in_progress") {
+                                throw new Error("এই বইয়ের পেমেন্ট ইতিমধ্যে চলছে। অপেক্ষা করুন।")
+                              }
+                              throw new Error(data.error || "পেমেন্ট তৈরি ব্যর্থ")
+                            }
                             if (!isAllowedPaymentUrl(data.payment_url)) {
                               throw new Error("অবৈধ পেমেন্ট URL")
                             }

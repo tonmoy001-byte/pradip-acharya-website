@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { serverError } from "@/lib/http-errors"
 
-export async function GET(req: Request, { params }: { params: Promise<{ orderId: string }> }) {  try {
+export async function GET(req: Request, { params }: { params: Promise<{ orderId: string }> }) {
+  try {
     await requireAdmin()
     const { orderId } = await params
     const client = await createServerClient()
@@ -28,16 +30,23 @@ export async function GET(req: Request, { params }: { params: Promise<{ orderId:
       profile = data
     }
 
-    // Download grants issued for this order's ebook lines (admin approval state)
+    // Download grants issued for this order's ebook lines
     const { data: grants } = await client.database
       .from("download_grants")
-      .select("id, order_item_id, max_downloads, download_count, expires_at, revoked_at")
+      .select("id, order_item_id, download_count, revoked_at")
       .eq("order_id", orderId)
 
-    return NextResponse.json({ order: { ...order, profile, download_grants: grants || [] } })
-  } catch (err: any) {
+    // Payment attempts for this order
+    const { data: attempts } = await client.database
+      .from("payment_attempts")
+      .select("id, provider, provider_transaction_id, status, amount, currency, created_at, completed_at, duplicate_of_attempt_id")
+      .eq("order_id", orderId)
+      .order("created_at", { ascending: false })
+
+    return NextResponse.json({ order: { ...order, profile, download_grants: grants || [], payment_attempts: attempts || [] } })
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin order detail", err)
   }
 }
 

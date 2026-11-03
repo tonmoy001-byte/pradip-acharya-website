@@ -30,7 +30,8 @@ const PRIVATE_PREFIXES = [
   "/logout",
   "/verify",
   "/forgot-password",
-  "/reset-password",
+  "/change-password",
+  "/register",
 ] as const
 
 export function proxy(request: NextRequest) {
@@ -64,5 +65,7 @@ export const config = {
     "/verify",
     "/forgot-password",
     "/reset-password",
+    "/change-password",
+    "/register",
   ],
 }

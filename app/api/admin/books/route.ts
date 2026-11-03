@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
-import { sanitizePostgREST } from "@/lib/sanitize"
+import { quotePostgrestValue } from "@/lib/sanitize-postgrest"
 import { invalidateBooks } from "@/lib/public-cache"
 import { EBOOK_DELIVERY_TYPE, BOOK_CATEGORY, BOOK_CATEGORY_LABEL } from "@/lib/data"
+import { serverError } from "@/lib/http-errors"
+import { assertSameOrigin } from "@/lib/origin-check"
 
 export async function GET(req: Request) {
   try {
@@ -19,8 +21,8 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false })
 
     if (search) {
-      const safe = sanitizePostgREST(search)
-      query = query.or(`title.ilike.%${safe}%,author.ilike.%${safe}%`)
+      const q = quotePostgrestValue(`%${search}%`)
+      query = query.or(`title.ilike.${q},author.ilike.${q}`)
     }
     if (category) {
       query = query.eq("category", category)
@@ -28,19 +30,19 @@ export async function GET(req: Request) {
 
     const { data, error } = await query
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: "Failed to fetch books" }, { status: 500 })
     }
 
     return NextResponse.json({ books: data || [] })
   } catch (err: unknown) {
     if (err instanceof Response) return err
-    const message = err instanceof Error ? err.message : "Internal server error"
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverError("admin books GET", err)
   }
 }
 
 export async function POST(req: Request) {
   try {
+    assertSameOrigin(req)
     await requireAdmin()
     const body = await req.json()
     const client = await createServerClient()
@@ -86,7 +88,7 @@ export async function POST(req: Request) {
     })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: "Failed to create book" }, { status: 500 })
     }
 
     // Update extra fields not handled by the RPC
@@ -103,13 +105,13 @@ export async function POST(req: Request) {
       .eq("id", bookId)
 
     if (updateErr) {
-      return NextResponse.json({ error: updateErr.message }, { status: 500 })
+      return NextResponse.json({ error: "Failed to update book" }, { status: 500 })
     }
 
     invalidateBooks(bookId)
     return NextResponse.json({ book_id: bookId })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin books POST", err)
   }
 }

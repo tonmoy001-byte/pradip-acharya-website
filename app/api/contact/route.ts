@@ -3,18 +3,19 @@
 // admin-configured contact inbox via Gmail SMTP. Nothing is stored.
 
 import { NextResponse } from "next/server"
+import { createHash } from "node:crypto"
 import nodemailer from "nodemailer"
 import { getSiteSettings } from "@/lib/api"
 import {
   isBotSubmission,
-  isRateLimited,
-  recordRateLimitUse,
   validateContactInput,
   sanitizeContactText,
   buildContactEmail,
   extractContactEmail,
-  type RateLimitStore,
 } from "@/lib/contact-form"
+import { assertSameOrigin } from "@/lib/origin-check"
+import { createServerClient } from "@/lib/insforge-server"
+import { createServiceClient } from "@/lib/insforge-service"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -24,19 +25,73 @@ const MAX_BODY_BYTES = 10 * 1024
 const RATE_LIMIT = 3
 const RATE_WINDOW_MS = 10 * 60 * 1000
 
-// Module-level in-memory store: resets on cold start (accepted — no DB).
-const rateStore: RateLimitStore = new Map()
+// Server-side salt so the raw client IP is never stored; only its hash is.
+const IP_SALT = process.env.CONTACT_RATE_LIMIT_SALT || process.env.INSFORGE_SERVICE_KEY || "pradipbooks-contact-salt"
 
+function ipHash(ip: string): string {
+  return createHash("sha256").update(ip + "|" + IP_SALT).digest("hex")
+}
+
+/** Persistent rate limit backed by the contact_rate_limits table.
+ *
+ * Inserts a row, then counts rows for this IP hash in the window. If the count
+ * exceeds the limit the row is rolled back and the caller is told to wait.
+ * This survives cold starts and is per-IP across instances.
+ */
+async function isRateLimitedDb(ip: string): Promise<boolean> {
+  // Service client: contact_rate_limits has RLS on with no policies
+  // (017), so only the service key may read or write it.
+  const client = createServiceClient()
+  const hash = ipHash(ip)
+  const { error: insertError } = await client.database
+    .from("contact_rate_limits")
+    .insert([{ ip_hash: hash }])
+  if (insertError) {
+    // If the table is missing or unreachable, fail open to keep the form
+    // working rather than blocking every submission permanently.
+    console.error("contact: rate-limit insert failed:", insertError.message)
+    return false
+  }
+  const cutoff = new Date(Date.now() - RATE_WINDOW_MS).toISOString()
+  const { count, error: countError } = await client.database
+    .from("contact_rate_limits")
+    .select("*", { count: "exact", head: true })
+    .eq("ip_hash", hash)
+    .gte("submitted_at", cutoff)
+  if (countError || (count ?? 0) <= RATE_LIMIT) return false
+  // Roll back our own row so the window is not inflated by the rejected attempt.
+  await client.database
+    .from("contact_rate_limits")
+    .delete()
+    .eq("ip_hash", hash)
+    .gte("submitted_at", cutoff)
+    .lt("submitted_at", new Date().toISOString())
+    .limit(1)
+  return true
+}
+
+// The first x-forwarded-for value is client-controlled and spoofable. Prefer
+// the proxy's own header first, then the last entry (added by our trusted
+// proxy). Vercel strips x-forwarded-for for client requests, so we fall back
+// to "unknown" rather than trusting a spoofed value.
 function clientIp(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for")
-  if (!forwarded) return "unknown"
-  return forwarded.split(",")[0].trim() || "unknown"
+  const real = req.headers.get("x-real-ip")
+  if (real) return real.trim()
+  const parts = (req.headers.get("x-forwarded-for") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return parts.length ? parts[parts.length - 1] : "unknown"
 }
 
 export async function POST(req: Request) {
   try {
-    const contentLength = Number(req.headers.get("content-length") ?? "0")
-    if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+    assertSameOrigin(req)
+
+    // Read the body ourselves so the size limit cannot be bypassed by a
+    // missing or false Content-Length header.
+    const raw = await req.text()
+    if (raw.length > MAX_BODY_BYTES) {
       return NextResponse.json(
         { ok: false, error: "বার্তাটি খুব বড়।" },
         { status: 400, headers: NO_STORE },
@@ -45,7 +100,7 @@ export async function POST(req: Request) {
 
     let payload: unknown
     try {
-      payload = await req.json()
+      payload = JSON.parse(raw)
     } catch {
       return NextResponse.json(
         { ok: false, error: "ভুল অনুরোধ।" },
@@ -73,9 +128,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error }, { status: 400, headers: NO_STORE })
     }
 
-    // 3. Rate limit per IP (checked before sending; recorded only on success).
+    // 3. Persistent rate limit per IP (checked before sending; recorded only on success).
     const ip = clientIp(req)
-    if (isRateLimited(rateStore, ip, nowMs, RATE_LIMIT, RATE_WINDOW_MS)) {
+    if (await isRateLimitedDb(ip)) {
       return NextResponse.json(
         { ok: false, error: "অনেকবার চেষ্টা করেছেন। কিছুক্ষণ পরে আবার চেষ্টা করুন।" },
         { status: 429, headers: NO_STORE },
@@ -136,7 +191,8 @@ export async function POST(req: Request) {
       html: mail.html,
     })
 
-    recordRateLimitUse(rateStore, ip, nowMs)
+    // The rate-limit row was inserted up front; successful submissions count
+    // toward the limit just like rejected ones.
     return NextResponse.json({ ok: true }, { status: 200, headers: NO_STORE })
   } catch (err) {
     // Log the reason only — never credentials or message bodies.

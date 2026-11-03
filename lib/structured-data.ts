@@ -128,6 +128,20 @@ export function breadcrumbList(crumbs: Breadcrumb[]) {
   }
 }
 
+/** A collection of named items, used for collection pages such as /books. */
+export function itemList(items: Array<{ name: string; path: string }>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListElement: items.map((item, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      name: item.name,
+      url: absoluteUrl(item.path),
+    })),
+  }
+}
+
 /** Home → Books → this book. */
 export function bookBreadcrumbs(book: Book): Breadcrumb[] {
   return [

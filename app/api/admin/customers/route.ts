@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { serverError } from "@/lib/http-errors"
 
 export async function GET(req: Request) {
   try {
@@ -63,7 +64,8 @@ export async function GET(req: Request) {
       const c = customerMap.get(uid)!
       c.orderCount++
       if (o.payment_status === "paid") {
-        c.totalSpent += Number(o.total)
+        const n = Number(o.total)
+        c.totalSpent += Number.isFinite(n) ? n : 0
       }
     }
 
@@ -94,8 +96,8 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({ customers: filtered })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin customers", err)
   }
 }

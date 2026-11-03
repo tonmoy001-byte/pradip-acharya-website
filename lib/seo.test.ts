@@ -296,6 +296,23 @@ describe("structured data", () => {
   })
 })
 
+describe("not-found page", () => {
+  it("is noindex and omits social preview tags", () => {
+    const src = read("app/not-found.tsx")
+    expect(src).toContain("index: false")
+    expect(src).toContain("openGraph: null")
+    expect(src).toContain("twitter: null")
+  })
+})
+
+describe("sitemap excludes private paths", () => {
+  it("does not list private routes", () => {
+    const src = read("app/sitemap.ts")
+    for (const p of ["/account", "/admin", "/checkout", "/payment", "/api", "/my-downloads"]) {
+      expect(src, p).not.toContain(`"${p}"`)
+    }
+  })
+})
 describe("private routes carry noindex", () => {
   it("sends an X-Robots-Tag header for every private route", () => {
     // The header, not a <meta> tag, is the reliable mechanism: /verify,

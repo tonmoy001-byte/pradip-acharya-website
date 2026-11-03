@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { serverError } from "@/lib/http-errors"
 
 export async function GET(req: Request) {
   try {
@@ -29,12 +30,12 @@ export async function GET(req: Request) {
     const { data, error } = await query
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      return NextResponse.json({ error: "Failed to fetch orders" }, { status: 500 })
     }
 
     return NextResponse.json({ data, page, limit })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin orders", err)
   }
 }

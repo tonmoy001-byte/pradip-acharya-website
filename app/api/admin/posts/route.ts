@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
-import { sanitizePostgREST } from "@/lib/sanitize"
+import { quotePostgrestValue } from "@/lib/sanitize-postgrest"
 import { invalidatePosts } from "@/lib/public-cache"
+import { serverError } from "@/lib/http-errors"
+import { cleanPostHtml } from "@/lib/sanitize-html"
+import { validatePostBody } from "@/lib/post-validation"
+import { assertSameOrigin } from "@/lib/origin-check"
 
 export async function GET(req: Request) {
   try {
@@ -19,8 +23,8 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false })
 
     if (search) {
-      const safe = sanitizePostgREST(search)
-      query = query.or(`title.ilike.%${safe}%,content.ilike.%${safe}%`)
+      const q = quotePostgrestValue(`%${search}%`)
+      query = query.or(`title.ilike.${q},content.ilike.${q}`)
     }
     if (status) {
       query = query.eq("status", status)
@@ -31,27 +35,33 @@ export async function GET(req: Request) {
 
     const { data, error } = await query
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error("[admin posts] list failed:", error.message)
+      return NextResponse.json({ error: "Failed to fetch posts" }, { status: 500 })
     }
 
     return NextResponse.json({ posts: data || [] })
   } catch (err: unknown) {
     if (err instanceof Response) return err
-    const message = err instanceof Error ? err.message : "Internal server error"
-    return NextResponse.json({ error: message }, { status: 500 })
+    return serverError("admin posts GET", err)
   }
 }
 
 export async function POST(req: Request) {
   try {
+    assertSameOrigin(req)
     await requireAdmin()
     const body = await req.json()
     const client = await createServerClient()
 
+    const validationError = validatePostBody(body)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
+    }
+
     const { data, error } = await client.database.rpc("admin_create_post", {
       p_title: body.title,
       p_slug: body.slug,
-      p_content: body.content || "",
+      p_content: cleanPostHtml(body.content || ""),
       p_excerpt: body.excerpt || null,
       p_cover_image: body.cover_image || null,
       p_post_type: body.post_type || "blog",
@@ -62,7 +72,8 @@ export async function POST(req: Request) {
     })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      console.error("[admin posts] create failed:", error.message)
+      return NextResponse.json({ error: "Failed to create post" }, { status: 500 })
     }
 
     // Update author_name if provided (RPC hardcodes it)
@@ -76,8 +87,8 @@ export async function POST(req: Request) {
 
     invalidatePosts(body.slug)
     return NextResponse.json({ post_id: postId })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) return err
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500 })
+    return serverError("admin posts POST", err)
   }
 }

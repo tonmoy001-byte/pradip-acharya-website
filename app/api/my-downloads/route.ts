@@ -5,6 +5,8 @@
 import { NextResponse } from "next/server"
 import { requireUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { createServiceClient } from "@/lib/insforge-service"
+import { serverError } from "@/lib/http-errors"
 
 export const dynamic = "force-dynamic"
 
@@ -55,8 +57,10 @@ export async function GET(req: Request) {
             missingByOrder.set(item.order_id, arr)
           }
 
-          const serviceClient = await createServerClient()
-          for (const [orderId, itemIds] of missingByOrder.entries()) {
+          // Service client: fulfill_paid_order is revoked from every
+          // application role (015) — only the service key may run it.
+          const serviceClient = createServiceClient()
+          for (const [orderId] of missingByOrder.entries()) {
             const order = paidOrders.find((o: any) => o.id === orderId)
             const paymentRef = order?.payment_reference ?? ""
             try {
@@ -80,7 +84,7 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500, headers: NO_STORE })
+      return NextResponse.json({ error: "Failed to fetch downloads" }, { status: 500, headers: NO_STORE })
     }
 
     const grants = data || []
@@ -125,13 +129,13 @@ export async function GET(req: Request) {
       })
 
     return NextResponse.json({ data: enriched }, { headers: NO_STORE })
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof Response) {
       return new Response(err.body, {
         status: err.status,
         headers: { ...Object.fromEntries(err.headers), ...NO_STORE },
       })
     }
-    return NextResponse.json({ error: err.message || "Internal server error" }, { status: 500, headers: NO_STORE })
+    return serverError("my-downloads", err, { headers: NO_STORE })
   }
 }

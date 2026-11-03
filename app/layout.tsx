@@ -10,7 +10,6 @@ import { ToastProvider } from "@/components/Toast"
 import { AuthProvider } from "@/lib/auth"
 import Navbar from "@/components/Navbar"
 import Footer from "@/components/Footer"
-import AnnouncementBar from "@/components/AnnouncementBar"
 import {
   absoluteUrl,
   DEFAULT_OG_IMAGE,
@@ -95,7 +94,6 @@ export default function RootLayout({
         <a href="#main-content" className="skip-to-content">
           মূল বিষয়বস্তুতে যান
         </a>
-        <AnnouncementBar />
         <ToastProvider>
           <AuthProvider>
             <Navbar />

@@ -19,7 +19,6 @@ export default function AccountDashboardPage() {
   const { user, loading: authLoading } = useAuth()
   const [activeOrders, setActiveOrders] = useState(0)
   const [totalOrders, setTotalOrders] = useState(0)
-  const [wishlistCount, setWishlistCount] = useState(0)
   const [downloadCount, setDownloadCount] = useState(0)
   const [recentOrder, setRecentOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
@@ -29,9 +28,8 @@ export default function AccountDashboardPage() {
 
     async function fetchDashboard() {
       try {
-        const [ordersRes, wishlistRes, downloadsRes] = await Promise.allSettled([
+        const [ordersRes, downloadsRes] = await Promise.allSettled([
           fetch("/api/my-orders", { credentials: "include" }),
-          fetch("/api/wishlist", { credentials: "include" }),
           fetch("/api/my-downloads", { credentials: "include" }),
         ])
 
@@ -43,11 +41,6 @@ export default function AccountDashboardPage() {
           if (orders.length > 0) {
             setRecentOrder(orders[0])
           }
-        }
-
-        if (wishlistRes.status === "fulfilled" && wishlistRes.value.ok) {
-          const { data } = await wishlistRes.value.json()
-          setWishlistCount(Array.isArray(data) ? data.length : 0)
         }
 
         if (downloadsRes.status === "fulfilled" && downloadsRes.value.ok) {
@@ -137,27 +130,6 @@ export default function AccountDashboardPage() {
               }}
             >
               {totalOrders}
-            </p>
-          </Link>
-        </div>
-
-        <div
-          className="card"
-          style={{ padding: "var(--sp-5)", cursor: "pointer", textDecoration: "none" }}
-        >
-          <Link href="/account/wishlist" style={{ textDecoration: "none", color: "inherit" }}>
-            <p style={{ fontSize: "0.8125rem", color: "var(--stone)", marginBottom: "var(--sp-1)" }}>
-              পছন্দের তালিকা
-            </p>
-            <p
-              style={{
-                fontSize: "1.75rem",
-                fontFamily: "var(--font-display)",
-                fontWeight: "var(--font-weight-bold)",
-                color: "var(--terracotta)",
-              }}
-            >
-              {wishlistCount}
             </p>
           </Link>
         </div>
