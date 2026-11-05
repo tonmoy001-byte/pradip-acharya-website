@@ -9,12 +9,13 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const requireUser = vi.fn()
+const getOptionalUser = vi.fn()
 const verifyGateway = vi.fn()
 let serviceClient: any
 
 vi.mock("@/lib/auth-helpers", () => ({
-  requireUser: () => requireUser(),
+  getOptionalUser: () => getOptionalUser(),
+  requireUser: () => getOptionalUser(),
 }))
 
 vi.mock("@/lib/insforge-service", () => ({
@@ -107,7 +108,7 @@ function verifyRequest(query = "transactionId=txn-1") {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  requireUser.mockResolvedValue({ id: "user-1" })
+  getOptionalUser.mockResolvedValue({ id: "user-1" })
 })
 
 describe("GET /api/payment/verify — order matching", () => {
@@ -119,7 +120,7 @@ describe("GET /api/payment/verify — order matching", () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body).toEqual({ status: "paid", order_id: "order-1", download_ready: true })
+    expect(body).toEqual({ status: "paid", order_id: "order-1", download_ready: true, guest: false })
     expect(
       serviceClient.calls.some(
         (c: Call) => c.fn === "eq" && c.args[0] === "id" && c.args[1] === "order-1",
@@ -142,7 +143,7 @@ describe("GET /api/payment/verify — order matching", () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(body).toEqual({ status: "paid", order_id: "order-1", download_ready: true })
+    expect(body).toEqual({ status: "paid", order_id: "order-1", download_ready: true, guest: false })
   })
 
   it("returns 409 when another order already holds this transaction", async () => {

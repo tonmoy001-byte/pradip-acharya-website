@@ -69,6 +69,7 @@ export default function AdminOrderDetailPage() {
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [resending, setResending] = useState(false)
 
   useEffect(() => {
     fetch(`/api/admin/orders/${orderId}`)
@@ -80,6 +81,20 @@ export default function AdminOrderDetailPage() {
       .catch(() => setError("অর্ডার খুঁজে পাওয়া যায়নি"))
       .finally(() => setLoading(false))
   }, [orderId])
+
+  async function resendGuestLink() {
+    if (!confirm("এই অতিথি অর্ডারের ডাউনলোড লিংক আবার পাঠাতে চান?")) return
+    setResending(true)
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/resend-guest-link`, { method: "POST" })
+      if (!res.ok) throw new Error("failed")
+      alert("লিংক পাঠানো হয়েছে।")
+    } catch {
+      alert("লিংক পাঠানো যায়নি।")
+    } finally {
+      setResending(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -136,6 +151,14 @@ export default function AdminOrderDetailPage() {
               <div style={{ display: "flex", justifyContent: "space-between" }}>
                 <span style={{ color: "var(--ink-muted)" }}>পেমেন্ট পদ্ধতি</span>
                 <span>{order.payment_method}</span>
+              </div>
+            )}
+            {order.user_id === null && order.payment_status === "paid" && (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ color: "var(--ink-muted)" }}>অতিথি ডাউনলোড লিংক</span>
+                <button className="btn btn-secondary" onClick={resendGuestLink} disabled={resending}>
+                  {resending ? "পাঠানো হচ্ছে…" : "লিংক আবার পাঠান"}
+                </button>
               </div>
             )}
             {order.payment_reference && (

@@ -1,11 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth"
 import { money } from "@/lib/format"
-import { safeNextPath } from "@/lib/safe-redirect"
 
 export interface DirectItem {
   bookId: string
@@ -31,11 +30,6 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [serverError, setServerError] = useState("")
   const [submitting, setSubmitting] = useState(false)
-
-  // Build the return-to-checkout path for login links
-  const checkoutPath = typeof window !== "undefined"
-    ? window.location.pathname + window.location.search
-    : "/checkout"
 
   function update(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
@@ -75,7 +69,9 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
       const data = await res.json()
 
       if (!res.ok) {
-        if (res.status === 401) throw new Error("আপনার সেশন শেষ হয়েছে, আবার লগ ইন করুন")
+        if (res.status === 429) {
+          throw new Error("অনেকবার চেষ্টা করা হয়েছে। কিছুক্ষণ পরে আবার চেষ্টা করুন।")
+        }
         if (res.status === 409 && data?.error === "active_order_exists" && data?.order_id) {
           // Reuse the existing pending order instead of creating a duplicate.
           orderId = data.order_id
@@ -88,7 +84,7 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
       }
 
       if (isFree && orderId) {
-        router.push("/my-downloads")
+        router.push(user ? "/my-downloads" : `/guest/order/${orderId}`)
         return
       }
 
@@ -102,7 +98,9 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
       })
       const payData = await payRes.json()
       if (!payRes.ok) {
-        if (payRes.status === 401) throw new Error("আপনার সেশন শেষ হয়েছে, আবার লগ ইন করুন")
+        if (payRes.status === 401 || payRes.status === 403) {
+          throw new Error("এই অর্ডারটি চালু করা যাচ্ছে না। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।")
+        }
         if (payRes.status === 409 && payData?.error === "payment_in_progress") {
           throw new Error("এই বইয়ের পেমেন্ট ইতিমধ্যে চলছে। অপেক্ষা করুন বা বিদ্যমান অর্ডার দেখুন।")
         }
@@ -152,50 +150,6 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
     )
   }
 
-  // Not logged in: show login prompt instead of form
-  if (!user) {
-    const loginUrl = `/login?next=${encodeURIComponent(checkoutPath)}`
-    const signupUrl = `/login?tab=signup&next=${encodeURIComponent(checkoutPath)}`
-
-    return (
-      <div className="container section-padding">
-        <div className="page-header">
-          <h1>চেকআউট</h1>
-        </div>
-
-        <div style={{ padding: "var(--sp-6)", background: "#fefce8", border: "1px solid #fde047", borderRadius: "var(--radius-lg)" }}>
-          <h2 style={{ marginBottom: "var(--sp-2)" }}>চেকআউট</h2>
-          <p style={{ marginBottom: "var(--sp-4)", color: "var(--stone)" }}>
-            বইটি কিনতে আগে লগ ইন করুন বা নতুন অ্যাকাউন্ট খুলুন। লগ ইন করলে আপনার ডাউনলোড ও অর্ডার সবসময় এখানেই পাবেন।
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--sp-3)" }}>
-            <Link href={loginUrl} className="btn btn-primary">
-              লগ ইন করুন
-            </Link>
-            <Link href={signupUrl} className="btn btn-secondary">
-              অ্যাকাউন্ট খুলুন
-            </Link>
-          </div>
-        </div>
-
-        {/* Order summary still visible */}
-        <div className="cart-summary" style={{ marginTop: "var(--sp-8)" }}>
-          <h2>অর্ডার সারসংক্ষেপ</h2>
-          {orderItems.map((item) => (
-            <div key={item.bookId} className="cart-summary-row">
-              <span>{item.title} (ইবুক)</span>
-              <span>{money(item.price * item.quantity)}</span>
-            </div>
-          ))}
-          <div className="cart-summary-total">
-            <span>মোট</span>
-            <span>{money(total)}</span>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   const inputStyle = { width: "100%" }
 
   return (
@@ -216,6 +170,11 @@ export default function CheckoutClient({ directItem }: CheckoutClientProps) {
             {/* Contact */}
             <div className="checkout-section">
               <h2>যোগাযোগের তথ্য</h2>
+              {!user && (
+                <p style={{ color: "var(--stone)", fontSize: "0.875rem", marginBottom: "var(--sp-4)" }}>
+                  অ্যাকাউন্ট ছাড়াই কিনতে পারবেন। পেমেন্ট সফল হলে এই ইমেইলে ডাউনলোড লিংক পাঠানো হবে।
+                </p>
+              )}
               <div className="checkout-row">
                 <div className="form-group">
                   <label className="form-label" htmlFor="name">নাম *</label>

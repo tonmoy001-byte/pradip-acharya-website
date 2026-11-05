@@ -82,6 +82,22 @@ export async function requireUser(): Promise<AuthUser> {
 }
 
 /**
+ * Resolve the session user when one exists.
+ *
+ * Only a 401 (no/invalid session) is treated as "not signed in". A 500 from
+ * the auth service must still surface, otherwise an outage would silently turn
+ * every signed-in request into an anonymous one.
+ */
+export async function getOptionalUser(): Promise<AuthUser | null> {
+  try {
+    return await requireUser()
+  } catch (err) {
+    if (err instanceof Response && err.status === 401) return null
+    throw err
+  }
+}
+
+/**
  * Verify the authenticated session user is an admin.
  * is_admin() is hardened to authorize only auth.uid() (verified JWT subject),
  * so a caller-supplied uid cannot escalate privileges.

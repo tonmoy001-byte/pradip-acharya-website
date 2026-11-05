@@ -1,6 +1,8 @@
 // app/api/orders/route.ts
 // POST: Create an ebook order from cart items.
-// Uses requireUser() verified InsForge session for auth.
+// Signed-in buyers use the authenticated create_ebook_order() RPC.
+// Anonymous buyers (guest checkout) use create_guest_ebook_order() with a
+// server-minted checkout token stored in an httpOnly `go_<orderId>` cookie.
 //
 // Order creation happens inside the create_ebook_order() database
 // function (db/migrations/018): one atomic transaction that prices
@@ -17,11 +19,15 @@
 // paperbook or to pay less than the listed price.
 
 import { NextResponse } from "next/server"
-import { requireUser } from "@/lib/auth-helpers"
+import { cookies } from "next/headers"
+import { getOptionalUser } from "@/lib/auth-helpers"
 import { createServerClient } from "@/lib/insforge-server"
+import { createServiceClient } from "@/lib/insforge-service"
 import { assertSameOrigin } from "@/lib/origin-check"
 import { revalidatePath } from "next/cache"
 import { serverError } from "@/lib/http-errors"
+import { newToken, sha256hex } from "@/lib/guest-token"
+import { clientIp, isGuestOrderRateLimited } from "@/lib/guest-rate-limit"
 
 export const dynamic = "force-dynamic"
 
@@ -65,7 +71,7 @@ function parseContact(value: unknown): OrderContact | null {
 
   const source = value as Record<string, unknown>
   const name = typeof source.name === "string" ? source.name.trim() : ""
-  const email = typeof source.email === "string" ? source.email.trim() : ""
+  const email = typeof source.email === "string" ? source.email.trim().toLowerCase() : ""
   const phone = typeof source.phone === "string" ? source.phone.trim() : ""
 
   // Length checks also reject whitespace-only values, which trim to "".
@@ -76,13 +82,19 @@ function parseContact(value: unknown): OrderContact | null {
   return { name, email, phone }
 }
 
-/** Maps create_ebook_order() exception messages to HTTP responses. */
+/** Maps create_ebook_order() / create_guest_ebook_order() errors to HTTP responses. */
 function mapOrderError(message: string): { status: number; error: string; order_id?: string } {
   if (message.startsWith("cart_empty")) return { status: 400, error: "Cart is empty" }
   if (message.startsWith("cart_too_large")) return { status: 400, error: "Too many items" }
   if (message.startsWith("book_not_found")) return { status: 400, error: "A book in your cart no longer exists" }
   if (message.startsWith("ebook_unavailable")) return { status: 400, error: "A book in your cart is unavailable" }
   if (message.startsWith("invalid_price")) return { status: 400, error: "A book in your cart has an invalid price" }
+  if (message.startsWith("free_not_allowed")) {
+    return { status: 400, error: "This order cannot be completed as a guest" }
+  }
+  if (message.startsWith("invalid_guest_token")) {
+    return { status: 400, error: "Checkout session expired. Please try again." }
+  }
   if (message.startsWith("already_owned")) {
     return { status: 409, error: "You already own this ebook and can still download it" }
   }
@@ -96,8 +108,8 @@ function mapOrderError(message: string): { status: number; error: string; order_
 export async function POST(req: Request) {
   try {
     assertSameOrigin(req)
-    await requireUser()
-    const client = await createServerClient()
+
+    const user = await getOptionalUser()
 
     const body = await req.json()
     const cartItems = (body as { cartItems?: unknown })?.cartItems
@@ -108,8 +120,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Too many items" }, { status: 400, headers: NO_STORE })
     }
 
-    // Only book ids are sent to the database function; quantity is
-    // fixed at 1 per book inside it (digital goods, one license each).
     const bookIds: string[] = []
     for (const item of cartItems) {
       const id = (item as { book_id?: unknown })?.book_id
@@ -124,21 +134,76 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Contact information required" }, { status: 400, headers: NO_STORE })
     }
 
-    const { data, error } = await client.database.rpc("create_ebook_order", {
+    // ---- Signed-in buyer: unchanged behaviour (authenticated RPC + RLS) ----
+    if (user) {
+      const client = await createServerClient()
+      const { data, error } = await client.database.rpc("create_ebook_order", {
+        p_items: bookIds,
+        p_contact: contact,
+      })
+
+      if (error) {
+        console.error("[orders] create failed:", error.message)
+        const mapped = mapOrderError(error.message ?? "")
+        const errorBody: Record<string, unknown> = { error: mapped.error }
+        if (mapped.order_id) errorBody.order_id = mapped.order_id
+        return NextResponse.json(errorBody, { status: mapped.status, headers: NO_STORE })
+      }
+
+      try { revalidatePath("/account/orders") } catch {}
+      try { revalidatePath("/account") } catch {}
+      return NextResponse.json({ data }, { headers: NO_STORE })
+    }
+
+    // ---- Guest buyer ----
+    // Fail closed: if the limiter cannot record/check the attempt, refuse.
+    let limited = true
+    try {
+      limited = await isGuestOrderRateLimited({ ip: clientIp(req), email: contact.email })
+    } catch (err) {
+      console.error("[orders] guest rate limit failed", err)
+      limited = true
+    }
+    if (limited) {
+      return NextResponse.json(
+        { error: "Too many checkout attempts. Please try again later." },
+        { status: 429, headers: NO_STORE },
+      )
+    }
+
+    // The raw token goes to the browser in an httpOnly cookie; only its hash
+    // is stored. The server-side project_admin client performs the write.
+    const guestToken = newToken()
+    const guestTokenHash = sha256hex(guestToken)
+
+    const service = createServiceClient()
+    const { data, error } = await service.database.rpc("create_guest_ebook_order", {
       p_items: bookIds,
       p_contact: contact,
+      p_guest_token_hash: guestTokenHash,
     })
 
     if (error) {
-      console.error("[orders] create failed:", error.message)
+      console.error("[orders] guest create failed:", error.message)
       const mapped = mapOrderError(error.message ?? "")
-      const body: Record<string, unknown> = { error: mapped.error }
-      if (mapped.order_id) body.order_id = mapped.order_id
-      return NextResponse.json(body, { status: mapped.status, headers: NO_STORE })
+      // Never expose an existing order id to an anonymous caller.
+      return NextResponse.json({ error: mapped.error }, { status: mapped.status, headers: NO_STORE })
     }
 
-    try { revalidatePath("/account/orders") } catch {}
-    try { revalidatePath("/account") } catch {}
+    const orderId = (data as { order_id?: string })?.order_id
+    if (!orderId) {
+      return NextResponse.json({ error: "Failed to create order" }, { status: 500, headers: NO_STORE })
+    }
+
+    const cookieStore = await cookies()
+    cookieStore.set(`go_${orderId}`, guestToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+    })
+
     return NextResponse.json({ data }, { headers: NO_STORE })
   } catch (err: unknown) {
     if (err instanceof Response) {

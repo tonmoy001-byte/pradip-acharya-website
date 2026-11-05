@@ -1,5 +1,10 @@
 // app/payment/success/page.tsx
 // Payment success redirect page. Verifies payment and shows confirmation.
+//
+// Guests never get a `t` token in the URL anymore: the email-exchange route
+// sets the httpOnly cookie and redirects here.  This page detects a guest
+// order from the verify response (`guest: true`) and links to the guest order
+// page instead of the signed-in account pages.
 
 "use client"
 
@@ -13,9 +18,10 @@ type PaymentStatus = "loading" | "paid" | "pending" | "error" | "failed" | "dupl
 
 export default function PaymentSuccessPage() {
   const searchParams = useSearchParams()
-  // NagorikPay redirects with `transactionId`; keep snake_case for older links.
   const transactionId = searchParams.get("transactionId") || searchParams.get("transaction_id")
   const [orderId, setOrderId] = useState(() => searchParams.get("order_id"))
+  const [isGuest, setIsGuest] = useState(false)
+  const [needsRecovery, setNeedsRecovery] = useState(false)
 
   const [status, setStatus] = useState<PaymentStatus>("loading")
   const [error, setError] = useState("")
@@ -48,6 +54,9 @@ export default function PaymentSuccessPage() {
           setError(`[${res.status}] ${data.error || "verification failed"}`)
           return
         }
+
+        if (typeof data.guest === "boolean") setIsGuest(data.guest)
+        if (data.recovery === true) setNeedsRecovery(true)
 
         if (data.status === "paid") {
           setStatus("paid")
@@ -99,6 +108,23 @@ export default function PaymentSuccessPage() {
     }
   }, [transactionId, orderId])
 
+  const guestLinks = (primary: string, secondary?: string) => (
+    <>
+      <Link href={`/guest/order/${orderId}`} className="btn btn-primary">
+        {primary}
+      </Link>
+      <Link href="/books" className="btn btn-secondary">সব বই দেখুন</Link>
+    </>
+  )
+
+  const accountLinks = (primary: string) => (
+    <>
+      <Link href="/account/orders" className="btn btn-primary">{primary}</Link>
+      <Link href="/my-downloads" className="btn btn-secondary">আমার ডাউনলোড</Link>
+      <Link href="/books" className="btn btn-secondary">আরও বই দেখুন</Link>
+    </>
+  )
+
   if (status === "loading") {
     return (
       <div className="container section-padding">
@@ -117,11 +143,15 @@ export default function PaymentSuccessPage() {
         <div className="order-confirm">
           <h1>পেমেন্ট যাচাই চলছে</h1>
           <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)" }}>
-            ব্যাংক/QR পেমেন্ট নিশ্চিত হতে কিছু সময় লাগতে পারে। নিশ্চিত হলেই আপনার ডাউনলোড চালু হবে।
+            ব্যাংক/QR পেমেন্ট নিশ্চিত হতে কিছু সময় লাগতে পারে। নিশ্চিত হলে আপনার ডাউনলোড চালু হবে।
           </p>
           <div style={{ display: "flex", gap: "var(--sp-3)", flexWrap: "wrap", marginTop: "var(--sp-4)" }}>
-            <Link href="/account/orders" className="btn btn-primary">আমার অর্ডার</Link>
-            <Link href="/my-downloads" className="btn btn-secondary">আমার ডাউনলোড</Link>
+            {isGuest
+              ? guestLinks("আমার অর্ডার দেখুন")
+              : <>
+                  <Link href="/account/orders" className="btn btn-primary">আমার অর্ডার</Link>
+                  <Link href="/my-downloads" className="btn btn-secondary">আমার ডাউনলোড</Link>
+                </>}
           </div>
         </div>
       </div>
@@ -138,15 +168,26 @@ export default function PaymentSuccessPage() {
             {error || "এখন যাচাই করা যাচ্ছে না। টাকা কেটে থাকলে চিন্তা করবেন না, কিছুক্ষণ পরে আমার অর্ডার দেখুন।"}
           </p>
           <div style={{ display: "flex", gap: "var(--sp-3)", flexWrap: "wrap" }}>
-            <button
-              onClick={() => window.location.reload()}
-              className="btn btn-primary"
-              style={{ marginRight: "var(--sp-3)" }}
-            >
-              আবার চেষ্টা করুন
-            </button>
-            <Link href="/account/orders" className="btn btn-secondary">আমার অর্ডার</Link>
-            <Link href="/contact" className="btn btn-secondary">সহায়তা</Link>
+            {isGuest ? (
+              <>
+                <Link href={`/guest/order/${orderId}`} className="btn btn-primary">
+                  আবার চেষ্টা করুন
+                </Link>
+                <Link href="/books" className="btn btn-secondary">সব বই দেখুন</Link>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="btn btn-primary"
+                  style={{ marginRight: "var(--sp-3)" }}
+                >
+                  আবার চেষ্টা করুন
+                </button>
+                <Link href="/account/orders" className="btn btn-secondary">আমার অর্ডার</Link>
+                <Link href="/contact" className="btn btn-secondary">সহায়তা</Link>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -165,8 +206,12 @@ export default function PaymentSuccessPage() {
           <p style={{ color: "var(--stone)", marginBottom: "var(--sp-2)" }}>ট্রানজেকশন আইডি: {transactionId}</p>
           <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)" }}>অর্ডার আইডি: {orderId}</p>
           <div style={{ display: "flex", gap: "var(--sp-3)", flexWrap: "wrap", marginTop: "var(--sp-4)" }}>
-            <Link href="/account/orders" className="btn btn-primary">আমার অর্ডার</Link>
-            <Link href="/my-downloads" className="btn btn-secondary">আমার ডাউনলোড</Link>
+            {isGuest
+              ? guestLinks("আমার অর্ডার দেখুন")
+              : <>
+                  <Link href="/account/orders" className="btn btn-primary">আমার অর্ডার</Link>
+                  <Link href="/my-downloads" className="btn btn-secondary">আমার ডাউনলোড</Link>
+                </>}
           </div>
         </div>
       </div>
@@ -183,16 +228,28 @@ export default function PaymentSuccessPage() {
             {error || "পেমেন্ট প্রক্রিয়াকরণে সমস্যা হয়েছে।"}
           </p>
           <div style={{ display: "flex", gap: "var(--sp-3)", flexWrap: "wrap" }}>
-            {orderId && (
-              <Link href={`/account/orders`} className="btn btn-primary">আমার অর্ডার</Link>
+            {isGuest ? (
+              <>
+                <Link href={`/guest/order/${orderId}`} className="btn btn-primary">
+                  আবার চেষ্টা করুন
+                </Link>
+                <Link href="/books" className="btn btn-secondary">আরও বই দেখুন</Link>
+              </>
+            ) : (
+              <>
+                {orderId && (
+                  <Link href={`/account/orders`} className="btn btn-primary">আমার অর্ডার</Link>
+                )}
+                <Link href="/books" className="btn btn-secondary">আরও বই দেখুন</Link>
+              </>
             )}
-            <Link href="/books" className="btn btn-secondary">আরও বই দেখুন</Link>
           </div>
         </div>
       </div>
     )
   }
 
+  // status === "paid"
   return (
     <div className="container section-padding">
       <SeoNoindex />
@@ -205,7 +262,11 @@ export default function PaymentSuccessPage() {
         <p style={{ color: "var(--stone)", marginBottom: "var(--sp-2)" }}>
           অর্ডার আইডি: {orderId}
         </p>
-        {!downloadReady ? (
+        {needsRecovery ? (
+          <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)" }}>
+            আপনার পেমেন্ট সফল হলে ডাউনলোড লিংক কয়েক মিনিটের মধ্যে ইমেইলে পাঠানো হবে। স্প্যাম ফোল্ডারও দেখুন।
+          </p>
+        ) : !downloadReady ? (
           <p style={{ color: "var(--stone)", marginBottom: "var(--sp-4)" }}>
             ডাউনলোড প্রস্তুত হচ্ছে, কিছুক্ষণ পরে আমার ডাউনলোড দেখুন।
           </p>
@@ -215,9 +276,27 @@ export default function PaymentSuccessPage() {
           </p>
         )}
         <div style={{ display: "flex", gap: "var(--sp-3)", flexWrap: "wrap", marginTop: "var(--sp-4)" }}>
-          <Link href="/account/orders" className="btn btn-primary">আমার অর্ডার</Link>
-          <Link href="/my-downloads" className="btn btn-secondary">আমার ডাউনলোড</Link>
-          <Link href="/books" className="btn btn-secondary">আরও বই দেখুন</Link>
+          {isGuest && needsRecovery ? (
+            <>
+              <Link href="/guest/recover" className="btn btn-primary">
+                ডাউনলোড লিংক পুনরুদ্ধার
+              </Link>
+              <Link href="/books" className="btn btn-secondary">সব বই দেখুন</Link>
+            </>
+          ) : isGuest ? (
+            <>
+              <Link href={`/guest/order/${orderId}`} className="btn btn-primary">
+                ডাউনলোড করুন
+              </Link>
+              <Link href="/books" className="btn btn-secondary">সব বই দেখুন</Link>
+            </>
+          ) : (
+            <>
+              <Link href="/account/orders" className="btn btn-primary">আমার অর্ডার</Link>
+              <Link href="/my-downloads" className="btn btn-secondary">আমার ডাউনলোড</Link>
+              <Link href="/books" className="btn btn-secondary">আরও বই দেখুন</Link>
+            </>
+          )}
         </div>
       </div>
     </div>

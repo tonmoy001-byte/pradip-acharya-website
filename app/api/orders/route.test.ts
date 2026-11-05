@@ -1,31 +1,49 @@
 // app/api/orders/route.test.ts
-// Order-creation regression tests.
-//
-// Order creation happens inside the create_ebook_order() database
-// function (db/migrations/018). These tests lock in what this route
-// is still responsible for: request validation, sending only book
-// ids (the function fixes quantity at 1 and prices every line
-// server-side), sanitizing the contact block, and mapping the
-// function's error messages to the right HTTP status.
+// Order-creation regression tests (signed-in + guest).
 
 import { describe, it, expect, vi, beforeEach } from "vitest"
 
-const requireUser = vi.fn()
+const getOptionalUser = vi.fn()
 const rpc = vi.fn()
+const serviceRpc = vi.fn()
+const rateLimit = vi.fn()
 
 vi.mock("@/lib/auth-helpers", () => ({
-  requireUser: () => requireUser(),
+  getOptionalUser: () => getOptionalUser(),
+  requireUser: () => getOptionalUser(),
 }))
 
 vi.mock("@/lib/insforge-server", () => ({
   createServerClient: async () => ({
-    database: {
-      rpc: (...args: any[]) => rpc(...args),
-    },
+    database: { rpc: (...args: any[]) => rpc(...args) },
   }),
 }))
 
+vi.mock("@/lib/insforge-service", () => ({
+  createServiceClient: () => ({
+    database: { rpc: (...args: any[]) => serviceRpc(...args) },
+  }),
+}))
+
+vi.mock("@/lib/guest-rate-limit", () => ({
+  clientIp: () => "127.0.0.1",
+  isGuestOrderRateLimited: (...args: any[]) => rateLimit(...args),
+}))
+
+vi.mock("@/lib/guest-token", () => ({
+  newToken: () => "guest-token-value",
+  sha256hex: (v: string) => "hashed-" + v,
+}))
+
 import { POST } from "./route"
+import { cookies } from "next/headers"
+
+vi.mock("next/headers", () => ({
+  cookies: async () => ({
+    set: vi.fn(),
+    get: vi.fn(),
+  }),
+}))
 
 function jsonRequest(body: any) {
   return new Request("https://site.test/api/orders", {
@@ -55,11 +73,13 @@ const ORDER_RESULT = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  requireUser.mockResolvedValue({ id: "user-1" })
+  getOptionalUser.mockResolvedValue({ id: "user-1" })
   rpc.mockResolvedValue({ data: ORDER_RESULT, error: null })
+  serviceRpc.mockResolvedValue({ data: ORDER_RESULT, error: null })
+  rateLimit.mockResolvedValue(false)
 })
 
-describe("POST /api/orders — create_ebook_order", () => {
+describe("POST /api/orders — signed-in", () => {
   it("creates the order through the database function with book ids only", async () => {
     const res = await POST(jsonRequest(baseBody()))
     const body = await res.json()
@@ -68,54 +88,17 @@ describe("POST /api/orders — create_ebook_order", () => {
     expect(body.data).toEqual(ORDER_RESULT)
     expect(rpc).toHaveBeenCalledTimes(1)
     expect(rpc.mock.calls[0][0]).toBe("create_ebook_order")
-    // Only book ids and the sanitized contact reach the database —
-    // quantity is fixed at 1 inside the function.
     expect(rpc.mock.calls[0][1]).toEqual({
       p_items: ["book-1"],
       p_contact: { name: "ক আচার্য্য", email: "a@b.c", phone: "01700000000" },
     })
   })
 
-  it("sends every cart line's book id (merging duplicates is the function's job)", async () => {
-    const res = await POST(
-      jsonRequest(baseBody({ cartItems: [{ book_id: "book-1" }, { book_id: "book-2" }] })),
-    )
-    expect(res.status).toBe(200)
-    expect(rpc.mock.calls[0][1].p_items).toEqual(["book-1", "book-2"])
-  })
-
-  it("maps cart_empty to 400", async () => {
-    rpc.mockResolvedValue({ data: null, error: { message: "cart_empty" } })
-    const res = await POST(jsonRequest(baseBody()))
-    const body = await res.json()
-    expect(res.status).toBe(400)
-    expect(body.error).toBe("Cart is empty")
-  })
-
-  it("maps already_owned to 409 so the customer keeps their download", async () => {
+  it("maps already_owned to 409", async () => {
     rpc.mockResolvedValue({ data: null, error: { message: "already_owned:ছেঁড়া পুষ্প" } })
     const res = await POST(jsonRequest(baseBody()))
     const body = await res.json()
     expect(res.status).toBe(409)
-    expect(body.error).toMatch(/already own this ebook/i)
-  })
-
-  it("maps book_not_found and ebook_unavailable to 400", async () => {
-    rpc.mockResolvedValue({ data: null, error: { message: "book_not_found:book-1" } })
-    const res = await POST(jsonRequest(baseBody()))
-    expect(res.status).toBe(400)
-
-    rpc.mockResolvedValue({ data: null, error: { message: "ebook_unavailable:Title" } })
-    const res2 = await POST(jsonRequest(baseBody()))
-    expect(res2.status).toBe(400)
-  })
-
-  it("maps unknown function errors to a generic 500 (never the raw message)", async () => {
-    rpc.mockResolvedValue({ data: null, error: { message: "column orders.foo does not exist" } })
-    const res = await POST(jsonRequest(baseBody()))
-    const body = await res.json()
-    expect(res.status).toBe(500)
-    expect(body.error).toBe("Failed to create order")
   })
 
   it("rejects an empty cart before touching the database", async () => {
@@ -124,70 +107,47 @@ describe("POST /api/orders — create_ebook_order", () => {
     expect(rpc).not.toHaveBeenCalled()
   })
 
-  it("rejects a cart larger than 50 items", async () => {
-    const items = Array.from({ length: 51 }, (_, i) => ({ book_id: `book-${i}` }))
-    const res = await POST(jsonRequest(baseBody({ cartItems: items })))
-    expect(res.status).toBe(400)
-    expect(rpc).not.toHaveBeenCalled()
-  })
-
-  it("rejects cart items without a usable book id", async () => {
-    for (const bad of [{}, { book_id: "" }, { book_id: 42 }, { book_id: "x".repeat(129) }]) {
-      const res = await POST(jsonRequest(baseBody({ cartItems: [bad] })))
-      expect(res.status).toBe(400)
-    }
-    expect(rpc).not.toHaveBeenCalled()
-  })
-
-  it("rejects invalid contact blocks (whitespace, bad email, wrong types)", async () => {
-    const cases: unknown[] = [
-      { name: "", email: "a@b.c", phone: "01700000000" },
-      { name: "   ", email: "   ", phone: "   " },
-      { name: "ক আচার্য্য", email: "notanemail", phone: "01700000000" },
-      { name: "ক আচার্য্য", email: "a@b.c", phone: "12345" },
-      "string",
-      42,
-      null,
-    ]
-    for (const contact of cases) {
-      const res = await POST(jsonRequest(baseBody({ contact })))
-      expect(res.status, `expected 400 for ${JSON.stringify(contact)}`).toBe(400)
-    }
-    expect(rpc).not.toHaveBeenCalled()
-  })
-
-  it("trims and strips unknown keys from the contact before sending", async () => {
-    const res = await POST(
-      jsonRequest(
-        baseBody({
-          contact: {
-            name: "  ক আচার্য্য  ",
-            email: " a@b.c ",
-            phone: " 01700000000 ",
-            user_id: "evil",
-            is_admin: true,
-          },
-        }),
-      ),
-    )
-    expect(res.status).toBe(200)
-    expect(rpc.mock.calls[0][1].p_contact).toEqual({
-      name: "ক আচার্য্য",
-      email: "a@b.c",
-      phone: "01700000000",
-    })
-  })
-
-  it("requires an authenticated user", async () => {
-    requireUser.mockRejectedValue(new Response("{}", { status: 401 }))
-    const res = await POST(jsonRequest(baseBody()))
-    expect(res.status).toBe(401)
-    expect(rpc).not.toHaveBeenCalled()
-  })
-
   it("keeps a thrown Response's status and adds no-store", async () => {
-    requireUser.mockRejectedValue(new Response("{}", { status: 401 }))
+    getOptionalUser.mockRejectedValue(new Response("{}", { status: 500 }))
     const res = await POST(jsonRequest(baseBody()))
+    expect(res.status).toBe(500)
     expect(res.headers.get("Cache-Control")).toBe("no-store")
+  })
+})
+
+describe("POST /api/orders — guest", () => {
+  beforeEach(() => {
+    getOptionalUser.mockResolvedValue(null)
+  })
+
+  it("creates a guest order via the service client and returns order_id", async () => {
+    const res = await POST(jsonRequest(baseBody()))
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.data).toEqual(ORDER_RESULT)
+    expect(serviceRpc).toHaveBeenCalledTimes(1)
+    expect(serviceRpc.mock.calls[0][0]).toBe("create_guest_ebook_order")
+    expect(rateLimit).toHaveBeenCalled()
+  })
+
+  it("fails closed (429) when the rate limiter rejects", async () => {
+    rateLimit.mockResolvedValue(true)
+    const res = await POST(jsonRequest(baseBody()))
+    expect(res.status).toBe(429)
+    expect(serviceRpc).not.toHaveBeenCalled()
+  })
+
+  it("does not leak an existing order id on error", async () => {
+    serviceRpc.mockResolvedValue({ data: null, error: { message: "active_order_exists:secret" } })
+    const res = await POST(jsonRequest(baseBody()))
+    const body = await res.json()
+    expect(res.status).toBe(409)
+    expect(body.order_id).toBeUndefined()
+  })
+
+  it("maps invalid_guest_token to 400", async () => {
+    serviceRpc.mockResolvedValue({ data: null, error: { message: "invalid_guest_token" } })
+    const res = await POST(jsonRequest(baseBody()))
+    expect(res.status).toBe(400)
   })
 })

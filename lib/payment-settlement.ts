@@ -23,6 +23,7 @@
 
 import { formatNagorikPayAmount } from "@/lib/nagorikpay"
 import { classifyGatewayStatus } from "@/lib/payment-status"
+import { deliverGuestOrderEmail } from "@/lib/guest-delivery"
 
 export interface NagorikPayVerifyResult {
   cus_name: string
@@ -47,23 +48,28 @@ export type ServiceClient = any
 
 interface OrderRow {
   id: string
-  user_id: string
+  user_id: string | null
   payment_status: string
   total: number
   payment_reference: string | null
   currency: string
+  contact: { name?: string; email?: string; phone?: string } | null
 }
 
 interface AttemptRow {
   id: string
   order_id: string
-  user_id: string
+  user_id: string | null
   status: string
   provider_transaction_id: string | null
 }
 
-const ORDER_COLUMNS = "id, user_id, payment_status, total, payment_reference, currency"
+const ORDER_COLUMNS =
+  "id, user_id, payment_status, total, payment_reference, currency, contact"
 
+// The NagorikPay verify response does not include a currency field, so we
+// cannot compare currency here. The store is BDT-only; if a multi-currency
+// gateway is ever introduced, add a currency check before marking paid.
 export function amountCoversOrder(gatewayAmount: unknown, orderTotal: unknown): boolean {
   const paid = Number(gatewayAmount)
   const total = Number(orderTotal)
@@ -120,6 +126,21 @@ async function fulfill(client: ServiceClient, order: OrderRow, transactionId: st
     console.error("[payment] fulfillment failed", { order_id: order.id })
     return { kind: "paid", order_id: order.id, download_ready: false }
   }
+
+  // Guest orders get their download link by email. The lease makes this safe
+  // to retry from both verify and webhook: only one caller sends, and a failed
+  // send is released for the next settlement attempt.
+  if (order.user_id === null) {
+    try {
+      await deliverGuestOrderEmail(client, order)
+    } catch (err) {
+      console.error("[payment] guest delivery failed", {
+        order_id: order.id,
+        message: err instanceof Error ? err.message : "unknown",
+      })
+    }
+  }
+
   return { kind: "paid", order_id: order.id, download_ready: true }
 }
 
@@ -162,7 +183,7 @@ export async function settleNagorikPayTransaction(args: {
 
   // Ownership checks.
   const metaUser = gateway.metadata?.user_id
-  if (typeof metaUser === "string" && metaUser !== order.user_id) {
+  if (typeof metaUser === "string" && order.user_id && metaUser !== order.user_id) {
     console.error("[payment] metadata user mismatch", { order_id: order.id })
     return { kind: "not_found" }
   }
