@@ -2,7 +2,7 @@
 // Server-side only: canonical public origin used for payment gateway
 // redirect/webhook URLs. Never import this in client components.
 
-const raw = process.env.APP_URL ?? "";
+const raw = process.env.APP_URL ?? process.env.NEXT_PUBLIC_SITE_URL ?? "";
 const url = raw.trim().replace(/\/+$/, "");
 
 if (!url) {
