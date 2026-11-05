@@ -1,10 +1,4 @@
 import type { Metadata } from "next"
-import {
-  Noto_Serif_Bengali,
-  Noto_Sans_Bengali,
-  Cormorant_Garamond,
-  Inter,
-} from "next/font/google"
 import "./globals.css"
 import { ToastProvider } from "@/components/Toast"
 import { AuthProvider } from "@/lib/auth"
@@ -17,30 +11,6 @@ import {
   SITE_NAME,
   SITE_URL,
 } from "@/lib/seo"
-
-const notoSerifBengali = Noto_Serif_Bengali({
-  subsets: ["bengali"],
-  variable: "--font-display",
-  weight: ["400", "700"],
-})
-
-const notoSansBengali = Noto_Sans_Bengali({
-  subsets: ["bengali"],
-  variable: "--font-body",
-  weight: ["400", "500", "700"],
-})
-
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
-  variable: "--font-display-latin",
-  weight: ["400", "600", "700"],
-})
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-body-latin",
-  weight: ["400", "500", "600"],
-})
 
 export const metadata: Metadata = {
   // Required so every relative canonical / OG URL resolves to absolute HTTPS.
@@ -86,10 +56,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html
-      lang="bn-BD"
-      className={`${notoSerifBengali.variable} ${notoSansBengali.variable} ${cormorant.variable} ${inter.variable}`}
-    >
+    <html lang="bn-BD">
       <body>
         <a href="#main-content" className="skip-to-content">
           মূল বিষয়বস্তুতে যান
