@@ -17,10 +17,22 @@ const EMAIL_LIMIT = 5
 const EMAIL_WINDOW_MS = 30 * 60 * 1000
 const SCOPE = "order"
 
-const SALT =
-  process.env.GUEST_RATE_LIMIT_SALT ||
-  process.env.INSFORGE_SERVICE_KEY ||
-  "pradipbooks-guest-checkout-salt"
+// A dedicated salt keeps rate-limit hashes independent from other credentials.
+// In production, configure GUEST_RATE_LIMIT_SALT (generate with
+// `openssl rand -hex 32`) instead of relying on the fallback below.
+const SALT = (() => {
+  const configured = process.env.GUEST_RATE_LIMIT_SALT?.trim()
+  if (configured) return configured
+
+  if (process.env.NODE_ENV === "production") {
+    console.warn(
+      "[guest-rate-limit] GUEST_RATE_LIMIT_SALT is not set; using the service-key fallback. " +
+        "Configure a dedicated salt for production.",
+    )
+  }
+
+  return process.env.INSFORGE_SERVICE_KEY || "pradipbooks-guest-checkout-salt"
+})()
 
 function hash(value: string): string {
   return createHash("sha256").update(value + "|" + SALT).digest("hex")

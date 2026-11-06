@@ -44,4 +44,11 @@ Unlimited, no expiry (migration 019). `download_count` / `last_downloaded_at` ar
 - Fail closed for guest order-creation rate limits.
 - Insert-only `orders_validate_guest_owner` trigger (not a CHECK constraint, so `ON DELETE SET NULL` still works).
 - `amountCoversOrder`, NagorikPay webhook signature, and pricing are unchanged.
-- Migration 021 is not applied; no DB changes have been made. Apply only after explicit approval.
+- The live database audit confirmed the guest migrations and RPCs are already applied. Do not re-apply them during routine deployment.
+
+## Runtime configuration
+
+- Guest email uses Gmail SMTP (`lib/email.ts`), not InsForge Resend SMTP.
+- `GMAIL_USER` and `GMAIL_APP_PASSWORD` must be configured in the application runtime.
+- `GUEST_RATE_LIMIT_SALT` is a private random string, not a provider credential. Generate it with `openssl rand -hex 32`.
+- `APP_URL` and `NEXT_PUBLIC_SITE_URL` must both be `https://pradipuponnash.com` in production.

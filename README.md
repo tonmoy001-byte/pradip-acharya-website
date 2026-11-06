@@ -2,7 +2,7 @@
 
 Next.js 16 (App Router) + React 19 + InsForge (Postgres BaaS) storefront for
 Bengali social novels as digital ebooks (PDF). Live site:
-`https://pradipbooks.insforge.site`.
+`https://pradipuponnash.com`.
 
 ## Getting started
 
@@ -17,7 +17,7 @@ Copy `.env.example` to `.env.local` and fill in real values. Never commit
 `.env.local`. Required for tests and local runs:
 
 - `NEXT_PUBLIC_SITE_URL` — canonical public origin (only change needed for a custom domain)
-- `APP_URL` — server-side public origin used for NagorikPay redirect/webhook URLs (production: https://pradipbooks.insforge.site; local: http://localhost:3000). Required; app fails fast if missing or localhost in production.
+- `APP_URL` — server-side public origin used for NagorikPay redirect/webhook URLs and guest email exchange links (production: https://pradipuponnash.com; local: http://localhost:3000). Required; app fails fast if missing or localhost in production.
 - `NEXT_PUBLIC_INSFORGE_URL`, `NEXT_PUBLIC_INSFORGE_ANON_KEY` — InsForge backend
 - `NAGORIKPAY_API_KEY`, `NAGORIKPAY_BASE_URL`, `NAGORIKPAY_WEBHOOK_SECRET` — payment gateway
 - `GMAIL_USER`, `GMAIL_APP_PASSWORD` — contact-form mail (server-only)
@@ -43,6 +43,8 @@ Statuses handled:
 - `ERROR` / unknown → `failed` or verification error page (never shows as paid)
 
 `fulfill_paid_order` (migration `012`) creates `download_grants` for each digital `order_item`; idempotent and callable by service client.
+
+Email delivery uses Gmail SMTP (`lib/email.ts`). Resend is not required by the current implementation. Configure `GMAIL_USER` and `GMAIL_APP_PASSWORD` in the runtime that actually runs the Next.js application. InsForge SMTP settings are separate and are not used by this code.
 
 Testing a signed webhook locally:
 ```bash

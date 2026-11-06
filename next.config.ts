@@ -62,12 +62,6 @@ const nextConfig: NextConfig = {
         destination: "https://pradipuponnash.com/:path*",
         permanent: true,
       },
-      {
-        source: "/:path((?!api/payment).*)",
-        has: [{ type: "host", value: "pradipbooks.insforge.site" }],
-        destination: "https://pradipuponnash.com/:path*",
-        permanent: true,
-      },
     ];
   },
   async headers() {

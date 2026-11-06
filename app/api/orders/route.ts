@@ -190,7 +190,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: mapped.error }, { status: mapped.status, headers: NO_STORE })
     }
 
-    const orderId = (data as { order_id?: string })?.order_id
+    const result = Array.isArray(data) ? data[0] : data
+    const orderId = (result as { order_id?: string })?.order_id
     if (!orderId) {
       return NextResponse.json({ error: "Failed to create order" }, { status: 500, headers: NO_STORE })
     }
@@ -204,7 +205,7 @@ export async function POST(req: Request) {
       maxAge: 60 * 60 * 24 * 7,
     })
 
-    return NextResponse.json({ data }, { headers: NO_STORE })
+    return NextResponse.json({ data: result }, { headers: NO_STORE })
   } catch (err: unknown) {
     if (err instanceof Response) {
       return new Response(err.body, {
